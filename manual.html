@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>動画マニュアル作成ツール (安定版)</title>
-    
-    <!-- Word作成機能 (docx.js) を最初に読み込む -->
-    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
+    <title>動画マニュアル作成ツール (決定版)</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -37,6 +34,10 @@
             -webkit-animation: spin 1s linear infinite; /* Safari */
             animation: spin 1s linear infinite;
         }
+        .spinner-blue {
+             border: 2px solid rgba(0, 0, 0, 0.1);
+             border-top: 2px solid #3b82f6;
+        }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -60,84 +61,93 @@
         const FileVideo = (props) => (<IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="m10 11 5 3-5 3v-6z"></path></IconBase>);
         const Download = (props) => (<IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></IconBase>);
         const Trash2 = (props) => (<IconBase {...props}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></IconBase>);
-        const Mic = (props) => (<IconBase {...props}><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></IconBase>);
-        const MicOff = (props) => (<IconBase {...props}><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path></IconBase>);
         const Printer = (props) => (<IconBase {...props}><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></IconBase>);
         const FileText = (props) => (<IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></IconBase>);
         const CheckCircle = (props) => (<IconBase {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></IconBase>);
         const AlertCircle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></IconBase>);
+        const RefreshCw = (props) => (<IconBase {...props}><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></IconBase>);
+
+        // --- Library Loader Utility ---
+        // 複数のCDNを順番に試すロジック
+        const loadDocxLibrary = async (onStatusChange) => {
+            if (window.docx) return true;
+
+            const urls = [
+                "https://unpkg.com/docx@8.5.0/build/index.js", // Source A
+                "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js", // Source B
+                "https://cdnjs.cloudflare.com/ajax/libs/docx/7.1.0/build/index.js" // Source C (Backup version)
+            ];
+            
+            for (let i = 0; i < urls.length; i++) {
+                const url = urls[i];
+                onStatusChange(`接続中 (${i + 1}/${urls.length})...`);
+                
+                try {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = url;
+                        script.async = true;
+                        
+                        // タイムアウト設定 (5秒で次へ)
+                        const timeoutId = setTimeout(() => {
+                            reject(new Error('Timeout'));
+                        }, 5000);
+
+                        script.onload = () => {
+                            clearTimeout(timeoutId);
+                            if (window.docx) resolve();
+                            else reject(new Error('Object not found'));
+                        };
+                        
+                        script.onerror = () => {
+                            clearTimeout(timeoutId);
+                            reject(new Error('Network error'));
+                        };
+                        
+                        document.head.appendChild(script);
+                    });
+                    
+                    console.log(`Loaded successfully from: ${url}`);
+                    return true; // 成功したら終了
+                } catch (e) {
+                    console.warn(`Failed to load from ${url}:`, e);
+                    // 失敗したら次のURLへループ
+                }
+            }
+            return false; // 全て失敗
+        };
 
         // --- Main Component ---
         function App() {
             const [videoSrc, setVideoSrc] = useState(null);
             const [steps, setSteps] = useState([]);
-            const [isListening, setIsListening] = useState(false);
-            const [currentStepIndexForVoice, setCurrentStepIndexForVoice] = useState(null);
             const [isExporting, setIsExporting] = useState(false);
-            const [isReady, setIsReady] = useState(false);
+            
+            // Library Status: 'init', 'loading', 'ready', 'error'
+            const [libStatus, setLibStatus] = useState('init');
+            const [statusMessage, setStatusMessage] = useState('待機中');
             
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
             const fileInputRef = useRef(null);
-            const recognition = useRef(null);
 
-            // 起動時に docx があるかチェック
+            // 初期ロード処理
             useEffect(() => {
-                if (window.docx) {
-                    setIsReady(true);
-                } else {
-                    // 万が一ロードが遅れている場合のチェック
-                    const interval = setInterval(() => {
-                        if (window.docx) {
-                            setIsReady(true);
-                            clearInterval(interval);
-                        }
-                    }, 500);
-                    return () => clearInterval(interval);
-                }
+                startLoading();
             }, []);
 
-            // 音声認識セットアップ
-            useEffect(() => {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (SpeechRecognition) {
-                    recognition.current = new SpeechRecognition();
-                    recognition.current.continuous = true;
-                    recognition.current.interimResults = true;
-                    recognition.current.lang = 'ja-JP';
-
-                    recognition.current.onresult = (event) => {
-                        const transcript = Array.from(event.results)
-                            .map(result => result[0].transcript)
-                            .join('');
-                        
-                        if (currentStepIndexForVoice !== null) {
-                            handleTextChange(currentStepIndexForVoice, transcript);
-                        }
-                    };
-
-                    recognition.current.onerror = (event) => {
-                        console.error("Speech recognition error", event.error);
-                        setIsListening(false);
-                    };
-                }
-            }, [currentStepIndexForVoice]);
-
-            const toggleListening = (index) => {
-                if (!recognition.current) {
-                    alert("お使いのブラウザは音声認識をサポートしていません。Chromeなどをご利用ください。");
-                    return;
-                }
-
-                if (isListening && currentStepIndexForVoice === index) {
-                    recognition.current.stop();
-                    setIsListening(false);
-                    setCurrentStepIndexForVoice(null);
+            const startLoading = async () => {
+                setLibStatus('loading');
+                setStatusMessage('接続中...');
+                
+                const success = await loadDocxLibrary((msg) => setStatusMessage(msg));
+                
+                if (success) {
+                    setLibStatus('ready');
+                    setStatusMessage('準備完了');
                 } else {
-                    if (isListening) recognition.current.stop();
-                    setCurrentStepIndexForVoice(index);
-                    recognition.current.start();
-                    setIsListening(true);
+                    setLibStatus('error');
+                    setStatusMessage('接続失敗');
                 }
             };
 
@@ -185,8 +195,8 @@
             };
 
             const exportToWord = async () => {
-                if (!window.docx) {
-                    alert("Word作成機能がロードされていません。ページを再読み込みしてください。");
+                if (libStatus !== 'ready' || !window.docx) {
+                    alert("Word出力機能の準備ができていません。右上の「再試行」ボタンを押してみてください。");
                     return;
                 }
 
@@ -199,13 +209,36 @@
                         const imageString = step.image.split(',')[1];
                         const imageBuffer = Uint8Array.from(atob(imageString), c => c.charCodeAt(0));
 
-                        const image = new ImageRun({
-                            data: imageBuffer,
-                            transformation: {
-                                width: 300,
-                                height: 200,
-                            },
-                        });
+                        // バージョンによってAPIが異なる場合の互換性処理
+                        let image;
+                        if (ImageRun) {
+                            image = new ImageRun({
+                                data: imageBuffer,
+                                transformation: { width: 300, height: 200 },
+                            });
+                        } else {
+                            // 古いバージョン (CDNフォールバック時)
+                            const { Media } = window.docx;
+                             if (Media && Media.addImage) {
+                                image = Media.addImage(doc, imageBuffer, 300, 200);
+                             }
+                        }
+                        
+                        // 画像が生成できなかった場合のフォールバック（テキストのみ）
+                        if (!image) {
+                             return new TableRow({
+                                children: [
+                                    new TableCell({
+                                        children: [new Paragraph("(画像エラー)")],
+                                        width: { size: 50, type: WidthType.PERCENTAGE },
+                                    }),
+                                    new TableCell({
+                                        children: [new Paragraph({ children: [new TextRun({ text: step.text, size: 24 })] })],
+                                        width: { size: 50, type: WidthType.PERCENTAGE },
+                                    }),
+                                ],
+                            });
+                        }
 
                         return new TableRow({
                             children: [
@@ -291,15 +324,30 @@
                                 {/* Library Status Indicator */}
                                 <div className="text-xs flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border">
                                     <span className="text-gray-500 font-medium">Word機能:</span>
-                                    {isReady ? (
+                                    {libStatus === 'loading' && (
+                                        <span className="flex items-center gap-1 text-blue-600">
+                                            <div className="spinner spinner-blue w-3 h-3"></div>
+                                            {statusMessage}
+                                        </span>
+                                    )}
+                                    {libStatus === 'ready' && (
                                         <span className="flex items-center gap-1 text-green-600 font-bold">
                                             <CheckCircle className="w-3 h-3" />
-                                            準備完了
+                                            {statusMessage}
                                         </span>
-                                    ) : (
-                                        <span className="flex items-center gap-1 text-red-500 font-bold">
-                                            <div className="spinner spinner-blue w-3 h-3 border-gray-400 border-t-blue-600"></div>
-                                            読み込み中...
+                                    )}
+                                    {libStatus === 'error' && (
+                                        <span className="flex items-center gap-1 text-red-600 font-bold">
+                                            <AlertCircle className="w-3 h-3" />
+                                            失敗
+                                            <button 
+                                                onClick={startLoading} 
+                                                className="ml-2 bg-red-50 px-2 py-0.5 rounded border border-red-200 hover:bg-red-100 flex items-center gap-1 text-red-700"
+                                                title="再読み込み"
+                                            >
+                                                <RefreshCw className="w-3 h-3" />
+                                                再試行
+                                            </button>
                                         </span>
                                     )}
                                 </div>
@@ -314,9 +362,9 @@
                                     </button>
                                     <button 
                                         onClick={exportToWord}
-                                        disabled={steps.length === 0 || isExporting || !isReady}
+                                        disabled={steps.length === 0 || isExporting || libStatus !== 'ready'}
                                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white transition-colors min-w-[180px] justify-center print:hidden
-                                            ${steps.length === 0 || isExporting || !isReady 
+                                            ${steps.length === 0 || isExporting || libStatus !== 'ready' 
                                                 ? 'bg-gray-400 cursor-not-allowed' 
                                                 : 'bg-indigo-600 hover:bg-indigo-700 shadow-md'
                                             }`}
@@ -436,59 +484,4 @@
                                                         <div className="relative rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video bg-gray-100">
                                                             <img src={step.image} alt={`Step ${index + 1}`} className="w-full h-full object-contain" />
                                                             <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md font-mono">
-                                                                Step {index + 1}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Text Area */}
-                                                    <div className="w-full md:w-1/2 flex flex-col gap-2">
-                                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex justify-between items-center">
-                                                            <span>説明テキスト</span>
-                                                            <div className="flex items-center gap-2 print:hidden">
-                                                                <button
-                                                                    onClick={() => toggleListening(index)}
-                                                                    className={`p-1.5 rounded-full transition-colors ${
-                                                                        isListening && currentStepIndexForVoice === index 
-                                                                            ? 'bg-red-100 text-red-600 animate-pulse' 
-                                                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                                                    }`}
-                                                                    title="音声入力（マイク）"
-                                                                >
-                                                                    {isListening && currentStepIndexForVoice === index ? <MicOff size={14} /> : <Mic size={14} />}
-                                                                </button>
-                                                            </div>
-                                                        </label>
-                                                        <textarea
-                                                            value={step.text}
-                                                            onChange={(e) => handleTextChange(index, e.target.value)}
-                                                            className="w-full h-full min-h-[120px] p-3 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none text-gray-700 leading-relaxed print:border-none print:p-0 print:resize-none"
-                                                            placeholder="手順の説明を入力してください..."
-                                                        />
-                                                    </div>
-
-                                                    {/* Delete Button */}
-                                                    <button 
-                                                        onClick={() => deleteStep(index)}
-                                                        className="absolute -top-3 -right-3 bg-white text-gray-400 hover:text-red-500 border shadow-sm p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
-                                                        title="この手順を削除"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                                                                Step {
