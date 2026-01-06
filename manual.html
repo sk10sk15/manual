@@ -15,8 +15,8 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Docx.js (最新の安定版を使用) -->
-    <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+    <!-- Docx.js (CDNをjsdelivrに変更) -->
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
 
     <style>
         @media print {
@@ -187,16 +187,37 @@
                 setSteps(prevSteps => prevSteps.filter((_, i) => i !== index));
             };
 
-            const exportToWord = async () => {
-                // docxライブラリのチェック
-                if (!window.docx) {
-                    alert("Word出力機能の準備中です。数秒待ってから再度お試しください。（インターネット接続が必要です）");
-                    return;
-                }
+            // ライブラリを動的に読み込んで確認する関数
+            const ensureDocxLoaded = () => {
+                return new Promise((resolve, reject) => {
+                    if (window.docx) {
+                        resolve(window.docx);
+                        return;
+                    }
+                    
+                    console.log("docxライブラリが見つかりません。動的ロードを試みます...");
+                    const script = document.createElement('script');
+                    script.src = "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js";
+                    script.onload = () => {
+                        if (window.docx) {
+                            console.log("docxライブラリのロードに成功しました。");
+                            resolve(window.docx);
+                        } else {
+                            reject(new Error("ライブラリはロードされましたが、docxオブジェクトが見つかりません。"));
+                        }
+                    };
+                    script.onerror = () => reject(new Error("CDNからのライブラリ読み込みに失敗しました。ネットワーク接続を確認してください。"));
+                    document.body.appendChild(script);
+                });
+            };
 
+            const exportToWord = async () => {
                 setIsExporting(true);
 
                 try {
+                    // ここでライブラリの存在確認と強制ロードを行う
+                    await ensureDocxLoaded();
+
                     const { Document, Packer, Paragraph, Table, TableRow, TableCell, ImageRun, WidthType, TextRun, BorderStyle } = window.docx;
 
                     const tableRows = steps.map(step => {
@@ -269,7 +290,7 @@
                     
                 } catch (error) {
                     console.error("Export Error:", error);
-                    alert(`Wordファイルの作成に失敗しました。\nエラー: ${error.message}`);
+                    alert(`Wordファイルの作成に失敗しました。\nエラー: ${error.message}\n\nセキュリティソフト等がCDNの読み込みをブロックしている可能性があります。`);
                 } finally {
                     setIsExporting(false);
                 }
