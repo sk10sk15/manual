@@ -1,2 +1,0 @@
-# manual
-make a manual
