@@ -492,21 +492,6 @@
 
                                                     {/* Text Area */}
                                                     <div className="w-full md:w-1/2 flex flex-col gap-2">
-                                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex justify-between items-center print-hidden">
-                                                            <div className="flex items-center gap-2">
-                                                                <button
-                                                                    onClick={() => toggleListening(index)}
-                                                                    className={`p-1.5 rounded-full transition-colors ${
-                                                                        isListening && currentStepIndexForVoice === index 
-                                                                            ? 'bg-red-100 text-red-600 animate-pulse' 
-                                                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                                                    }`}
-                                                                    title="音声入力（マイク）"
-                                                                >
-                                                                    {isListening && currentStepIndexForVoice === index ? <MicOff size={14} /> : <Mic size={14} />}
-                                                                </button>
-                                                            </div>
-                                                        </label>
                                                         <textarea
                                                             value={step.text}
                                                             onChange={(e) => handleTextChange(index, e.target.value)}
