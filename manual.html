@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>動画マニュアル作成ツール</title>
+    <title>動画マニュアル作成ツール (Ver.4復刻版)</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -304,8 +304,8 @@
                 <div className="min-h-screen bg-gray-50 p-6 font-sans text-gray-800">
                     <div className="max-w-6xl mx-auto space-y-8">
                         
-                        {/* Header */}
-                        <header className="flex justify-between items-center border-b pb-4 bg-white p-6 rounded-xl shadow-sm">
+                        {/* Header: print:hidden を追加して印刷時に非表示にする */}
+                        <header className="flex justify-between items-center border-b pb-4 bg-white p-6 rounded-xl shadow-sm print:hidden">
                             <div>
                                 <h1 className="text-2xl font-bold flex items-center gap-2 text-indigo-600">
                                     <FileVideo className="w-8 h-8" />
