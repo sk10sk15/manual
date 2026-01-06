@@ -484,4 +484,46 @@
                                                         <div className="relative rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video bg-gray-100">
                                                             <img src={step.image} alt={`Step ${index + 1}`} className="w-full h-full object-contain" />
                                                             <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md font-mono">
-                                                                Step {
+                                                                Step {index + 1}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Text Area */}
+                                                    <div className="w-full md:w-1/2 flex flex-col gap-2">
+                                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex justify-between items-center">
+                                                            <span>説明テキスト</span>
+                                                        </label>
+                                                        <textarea
+                                                            value={step.text}
+                                                            onChange={(e) => handleTextChange(index, e.target.value)}
+                                                            className="w-full h-full min-h-[120px] p-3 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none text-gray-700 leading-relaxed print:border-none print:p-0 print:resize-none"
+                                                            placeholder="手順の説明を入力してください..."
+                                                        />
+                                                    </div>
+
+                                                    {/* Delete Button */}
+                                                    <button 
+                                                        onClick={() => deleteStep(index)}
+                                                        className="absolute -top-3 -right-3 bg-white text-gray-400 hover:text-red-500 border shadow-sm p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
+                                                        title="この手順を削除"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
