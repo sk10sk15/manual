@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>動画マニュアル作成ツール (接続強化版)</title>
+    <title>動画マニュアル作成ツール (安定版)</title>
+    
+    <!-- Word作成機能 (docx.js) を最初に読み込む -->
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -34,10 +37,6 @@
             -webkit-animation: spin 1s linear infinite; /* Safari */
             animation: spin 1s linear infinite;
         }
-        .spinner-blue {
-             border: 2px solid rgba(0, 0, 0, 0.1);
-             border-top: 2px solid #3b82f6;
-        }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -67,40 +66,6 @@
         const FileText = (props) => (<IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></IconBase>);
         const CheckCircle = (props) => (<IconBase {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></IconBase>);
         const AlertCircle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></IconBase>);
-        const RefreshCw = (props) => (<IconBase {...props}><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></IconBase>);
-
-        // --- Library Loader Utility ---
-        const loadDocxLibrary = async () => {
-            if (window.docx) return true;
-
-            const urls = [
-                "https://unpkg.com/docx@8.5.0/build/index.js", // Primary
-                "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js", // Backup 1
-                "https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/index.min.js" // Backup 2 (fake url for logic, using jsdelivr effectively)
-            ];
-            
-            for (const url of urls) {
-                try {
-                    await new Promise((resolve, reject) => {
-                        console.log(`Trying to load: ${url}`);
-                        const script = document.createElement('script');
-                        script.src = url;
-                        script.onload = () => {
-                            if (window.docx) resolve();
-                            else reject(new Error('docx object not found'));
-                        };
-                        script.onerror = () => reject(new Error('Network error'));
-                        document.head.appendChild(script);
-                    });
-                    console.log(`Success loading from: ${url}`);
-                    return true; // 成功したら終了
-                } catch (e) {
-                    console.warn(`Failed to load from ${url}`, e);
-                    // 次のURLへ
-                }
-            }
-            return false; // 全て失敗
-        };
 
         // --- Main Component ---
         function App() {
@@ -108,26 +73,29 @@
             const [steps, setSteps] = useState([]);
             const [isListening, setIsListening] = useState(false);
             const [currentStepIndexForVoice, setCurrentStepIndexForVoice] = useState(null);
-            
-            // Library Status: 'init', 'loading', 'ready', 'error'
-            const [libStatus, setLibStatus] = useState('init');
             const [isExporting, setIsExporting] = useState(false);
+            const [isReady, setIsReady] = useState(false);
             
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
             const fileInputRef = useRef(null);
             const recognition = useRef(null);
 
-            // 初期ロード処理
+            // 起動時に docx があるかチェック
             useEffect(() => {
-                initLibrary();
+                if (window.docx) {
+                    setIsReady(true);
+                } else {
+                    // 万が一ロードが遅れている場合のチェック
+                    const interval = setInterval(() => {
+                        if (window.docx) {
+                            setIsReady(true);
+                            clearInterval(interval);
+                        }
+                    }, 500);
+                    return () => clearInterval(interval);
+                }
             }, []);
-
-            const initLibrary = async () => {
-                setLibStatus('loading');
-                const success = await loadDocxLibrary();
-                setLibStatus(success ? 'ready' : 'error');
-            };
 
             // 音声認識セットアップ
             useEffect(() => {
@@ -217,8 +185,8 @@
             };
 
             const exportToWord = async () => {
-                if (libStatus !== 'ready' || !window.docx) {
-                    alert("Word出力機能の準備ができていません。右上の「再読み込み」ボタンを押してみてください。");
+                if (!window.docx) {
+                    alert("Word作成機能がロードされていません。ページを再読み込みしてください。");
                     return;
                 }
 
@@ -323,29 +291,15 @@
                                 {/* Library Status Indicator */}
                                 <div className="text-xs flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border">
                                     <span className="text-gray-500 font-medium">Word機能:</span>
-                                    {libStatus === 'loading' && (
-                                        <span className="flex items-center gap-1 text-blue-600">
-                                            <div className="spinner spinner-blue w-3 h-3"></div>
-                                            準備中...
-                                        </span>
-                                    )}
-                                    {libStatus === 'ready' && (
+                                    {isReady ? (
                                         <span className="flex items-center gap-1 text-green-600 font-bold">
                                             <CheckCircle className="w-3 h-3" />
                                             準備完了
                                         </span>
-                                    )}
-                                    {libStatus === 'error' && (
-                                        <span className="flex items-center gap-1 text-red-600 font-bold">
-                                            <AlertCircle className="w-3 h-3" />
-                                            読込失敗
-                                            <button 
-                                                onClick={initLibrary} 
-                                                className="ml-1 underline hover:text-red-800 flex items-center gap-1"
-                                                title="再読み込み"
-                                            >
-                                                <RefreshCw className="w-3 h-3" />
-                                            </button>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-red-500 font-bold">
+                                            <div className="spinner spinner-blue w-3 h-3 border-gray-400 border-t-blue-600"></div>
+                                            読み込み中...
                                         </span>
                                     )}
                                 </div>
@@ -360,9 +314,9 @@
                                     </button>
                                     <button 
                                         onClick={exportToWord}
-                                        disabled={steps.length === 0 || isExporting || libStatus !== 'ready'}
+                                        disabled={steps.length === 0 || isExporting || !isReady}
                                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white transition-colors min-w-[180px] justify-center print:hidden
-                                            ${steps.length === 0 || isExporting || libStatus !== 'ready' 
+                                            ${steps.length === 0 || isExporting || !isReady 
                                                 ? 'bg-gray-400 cursor-not-allowed' 
                                                 : 'bg-indigo-600 hover:bg-indigo-700 shadow-md'
                                             }`}
