@@ -3,19 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>動画マニュアル作成ツール (決定版)</title>
+    <title>動画マニュアル作成ツール (復旧版)</title>
     
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel (for JSX) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
+    <!-- エラー発生時に画面に表示するためのスタイル -->
     <style>
+        body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f9fafb; color: #1f2937; }
+        #global-error {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            z-index: 9999;
+            flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 20px; box-sizing: border-box;
+        }
+        #global-error h2 { color: #dc2626; margin-bottom: 10px; }
+        #global-error p { margin-bottom: 20px; line-height: 1.5; }
+        #global-error button {
+            padding: 10px 20px; background-color: #4b5563; color: white;
+            border: none; border-radius: 5px; cursor: pointer; font-size: 16px;
+        }
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #ffffff;
+            z-index: 1000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.5s;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3; border-top: 4px solid #4f46e5;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
         @media print {
             @page { margin: 1cm; size: A4; }
             body { background: white; }
@@ -24,28 +44,52 @@
             .print\:border-none { border: none !important; }
             textarea { border: none !important; resize: none !important; }
         }
-        /* ローディングスピナー */
-        .spinner {
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 2px solid #ffffff;
-            width: 16px;
-            height: 16px;
-            -webkit-animation: spin 1s linear infinite; /* Safari */
-            animation: spin 1s linear infinite;
-        }
-        .spinner-blue {
-             border: 2px solid rgba(0, 0, 0, 0.1);
-             border-top: 2px solid #3b82f6;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
+
+    <!-- React & ReactDOM (CDN) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (CDN) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body>
+
+    <!-- 初期ロード画面 -->
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <p>ツールを起動しています...</p>
+    </div>
+
+    <!-- エラー表示画面 -->
+    <div id="global-error">
+        <h2>エラーが発生しました</h2>
+        <p id="error-message">予期せぬエラーです。</p>
+        <p class="text-sm text-gray-500">ネットワーク接続を確認するか、セキュリティソフトの設定を確認してください。</p>
+        <button onclick="window.location.reload()">ページを再読み込み</button>
+    </div>
+
+    <!-- Reactアプリのマウントポイント -->
     <div id="root"></div>
+
+    <script>
+        // グローバルエラーハンドリング
+        window.onerror = function(msg, url, line, col, error) {
+            const errorDiv = document.getElementById('global-error');
+            const errorMsg = document.getElementById('error-message');
+            const loadingDiv = document.getElementById('loading-screen');
+            
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            errorDiv.style.display = 'flex';
+            errorMsg.textContent = msg;
+            
+            console.error("Global Error:", error);
+            return false;
+        };
+    </script>
 
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
@@ -68,14 +112,13 @@
         const RefreshCw = (props) => (<IconBase {...props}><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></IconBase>);
 
         // --- Library Loader Utility ---
-        // 複数のCDNを順番に試すロジック
         const loadDocxLibrary = async (onStatusChange) => {
             if (window.docx) return true;
 
+            // バージョン 8.5.0 で統一
             const urls = [
-                "https://unpkg.com/docx@8.5.0/build/index.js", // Source A
-                "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js", // Source B
-                "https://cdnjs.cloudflare.com/ajax/libs/docx/7.1.0/build/index.js" // Source C (Backup version)
+                "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js", // JSDelivr (高速)
+                "https://unpkg.com/docx@8.5.0/build/index.js" // Unpkg (バックアップ)
             ];
             
             for (let i = 0; i < urls.length; i++) {
@@ -86,35 +129,33 @@
                     await new Promise((resolve, reject) => {
                         const script = document.createElement('script');
                         script.src = url;
-                        script.async = true;
+                        // script.async = true; // 順序保証のため外す
                         
-                        // タイムアウト設定 (5秒で次へ)
                         const timeoutId = setTimeout(() => {
-                            reject(new Error('Timeout'));
-                        }, 5000);
+                            reject(new Error('タイムアウト: サーバーからの応答がありません'));
+                        }, 8000); // 8秒待つ
 
                         script.onload = () => {
                             clearTimeout(timeoutId);
                             if (window.docx) resolve();
-                            else reject(new Error('Object not found'));
+                            else reject(new Error('ライブラリの中身が空でした'));
                         };
                         
                         script.onerror = () => {
                             clearTimeout(timeoutId);
-                            reject(new Error('Network error'));
+                            reject(new Error('ネットワークエラー'));
                         };
                         
                         document.head.appendChild(script);
                     });
                     
                     console.log(`Loaded successfully from: ${url}`);
-                    return true; // 成功したら終了
+                    return true;
                 } catch (e) {
                     console.warn(`Failed to load from ${url}:`, e);
-                    // 失敗したら次のURLへループ
                 }
             }
-            return false; // 全て失敗
+            return false;
         };
 
         // --- Main Component ---
@@ -123,7 +164,7 @@
             const [steps, setSteps] = useState([]);
             const [isExporting, setIsExporting] = useState(false);
             
-            // Library Status: 'init', 'loading', 'ready', 'error'
+            // Library Status
             const [libStatus, setLibStatus] = useState('init');
             const [statusMessage, setStatusMessage] = useState('待機中');
             
@@ -133,6 +174,10 @@
 
             // 初期ロード処理
             useEffect(() => {
+                // ローディング画面を消す（Reactが起動した証拠）
+                const loadingScreen = document.getElementById('loading-screen');
+                if(loadingScreen) loadingScreen.style.display = 'none';
+
                 startLoading();
             }, []);
 
@@ -196,7 +241,7 @@
 
             const exportToWord = async () => {
                 if (libStatus !== 'ready' || !window.docx) {
-                    alert("Word出力機能の準備ができていません。右上の「再試行」ボタンを押してみてください。");
+                    alert("Word出力機能の準備ができていません。インターネット接続を確認し、右上の「再試行」ボタンを押してください。");
                     return;
                 }
 
@@ -209,36 +254,10 @@
                         const imageString = step.image.split(',')[1];
                         const imageBuffer = Uint8Array.from(atob(imageString), c => c.charCodeAt(0));
 
-                        // バージョンによってAPIが異なる場合の互換性処理
-                        let image;
-                        if (ImageRun) {
-                            image = new ImageRun({
-                                data: imageBuffer,
-                                transformation: { width: 300, height: 200 },
-                            });
-                        } else {
-                            // 古いバージョン (CDNフォールバック時)
-                            const { Media } = window.docx;
-                             if (Media && Media.addImage) {
-                                image = Media.addImage(doc, imageBuffer, 300, 200);
-                             }
-                        }
-                        
-                        // 画像が生成できなかった場合のフォールバック（テキストのみ）
-                        if (!image) {
-                             return new TableRow({
-                                children: [
-                                    new TableCell({
-                                        children: [new Paragraph("(画像エラー)")],
-                                        width: { size: 50, type: WidthType.PERCENTAGE },
-                                    }),
-                                    new TableCell({
-                                        children: [new Paragraph({ children: [new TextRun({ text: step.text, size: 24 })] })],
-                                        width: { size: 50, type: WidthType.PERCENTAGE },
-                                    }),
-                                ],
-                            });
-                        }
+                        const image = new ImageRun({
+                            data: imageBuffer,
+                            transformation: { width: 300, height: 200 },
+                        });
 
                         return new TableRow({
                             children: [
@@ -296,7 +315,7 @@
                     
                 } catch (error) {
                     console.error("Export Error:", error);
-                    alert(`書き出しエラー: ${error.message}`);
+                    alert(`書き出しエラー: ${error.message}\n(画像サイズが大きすぎる場合などに発生することがあります)`);
                 } finally {
                     setIsExporting(false);
                 }
@@ -326,7 +345,7 @@
                                     <span className="text-gray-500 font-medium">Word機能:</span>
                                     {libStatus === 'loading' && (
                                         <span className="flex items-center gap-1 text-blue-600">
-                                            <div className="spinner spinner-blue w-3 h-3"></div>
+                                            <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
                                             {statusMessage}
                                         </span>
                                     )}
@@ -342,7 +361,7 @@
                                             失敗
                                             <button 
                                                 onClick={startLoading} 
-                                                className="ml-2 bg-red-50 px-2 py-0.5 rounded border border-red-200 hover:bg-red-100 flex items-center gap-1 text-red-700"
+                                                className="ml-2 bg-red-50 px-2 py-0.5 rounded border border-red-200 hover:bg-red-100 flex items-center gap-1 text-red-700 cursor-pointer"
                                                 title="再読み込み"
                                             >
                                                 <RefreshCw className="w-3 h-3" />
@@ -371,7 +390,7 @@
                                     >
                                         {isExporting ? (
                                             <>
-                                                <div className="spinner"></div>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                                                 <span>作成中...</span>
                                             </>
                                         ) : (
