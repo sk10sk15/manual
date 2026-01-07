@@ -37,7 +37,7 @@
                 display: block !important; 
             }
             
-            /* 各ステップのスタイル調整（2項目が1ページに入るように） */
+            /* 各ステップのスタイル調整 */
             .step-item {
                 break-inside: avoid;
                 page-break-inside: avoid;
@@ -45,11 +45,10 @@
                 margin-bottom: 15px !important;
                 padding: 10px !important;
                 height: auto;
-                display: flex !important; /* フレックスボックスを維持 */
+                display: flex !important;
                 page-break-after: auto;
             }
 
-            /* 画像の高さを制限して1ページに収まりやすくする */
             .step-image-container {
                 max-height: 300px;
                 width: 50% !important;
@@ -75,6 +74,20 @@
                 display: block !important;
             }
         }
+        
+        /* ローディングアニメーション */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #ffffff;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -97,17 +110,37 @@
         const FileText = (props) => (<IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></IconBase>);
         const Save = (props) => (<IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></IconBase>);
         const Upload = (props) => (<IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></IconBase>);
+        const Settings = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></IconBase>);
+        const Cloud = (props) => (<IconBase {...props}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></IconBase>);
+        const ArrowUp = (props) => (<IconBase {...props}><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></IconBase>);
+        const ArrowDown = (props) => (<IconBase {...props}><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></IconBase>);
 
         // --- Main Component ---
         function App() {
             const [videoSrc, setVideoSrc] = useState(null);
             const [steps, setSteps] = useState([]);
-            const [fileName, setFileName] = useState(""); // デフォルト名を変更
+            const [fileName, setFileName] = useState("作業書データ");
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            const [gasUrl, setGasUrl] = useState("");
+            const [isSending, setIsSending] = useState(false);
             
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
             const fileInputRef = useRef(null);
             const jsonInputRef = useRef(null);
+
+            // ローカルストレージからGAS URLを読み込み
+            useEffect(() => {
+                const savedUrl = localStorage.getItem("procedure_maker_gas_url");
+                if (savedUrl) setGasUrl(savedUrl);
+            }, []);
+
+            // GAS URL保存
+            const saveGasUrl = () => {
+                localStorage.setItem("procedure_maker_gas_url", gasUrl);
+                setIsSettingsOpen(false);
+                alert("連携URLを保存しました");
+            };
 
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
@@ -152,6 +185,18 @@
                 setSteps(prevSteps => prevSteps.filter((_, i) => i !== index));
             };
 
+            const moveStep = (index, direction) => {
+                if ((direction === -1 && index === 0) || (direction === 1 && index === steps.length - 1)) return;
+                
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    const temp = newSteps[index];
+                    newSteps[index] = newSteps[index + direction];
+                    newSteps[index + direction] = temp;
+                    return newSteps;
+                });
+            };
+
             // --- データの保存 (JSON) ---
             const saveData = () => {
                 if (steps.length === 0) {
@@ -163,8 +208,7 @@
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                // 日付を削除し、入力されたファイル名のみで保存
-                const name = fileName.trim() || "";
+                const name = fileName.trim() || "作業書データ";
                 link.download = `${name}.json`;
                 document.body.appendChild(link);
                 link.click();
@@ -193,8 +237,65 @@
                     }
                 };
                 reader.readAsText(file);
-                // 同じファイルを再度選べるようにリセット
                 event.target.value = '';
+            };
+
+            // --- Google Docsへ送信 ---
+            const sendToGoogleDocs = async () => {
+                if (!gasUrl) {
+                    alert("設定ボタン(右上の歯車)からGoogle Apps ScriptのURLを登録してください。");
+                    setIsSettingsOpen(true);
+                    return;
+                }
+                if (steps.length === 0) {
+                    alert("送信するデータがありません。");
+                    return;
+                }
+
+                if (!confirm("Googleドキュメントを作成しますか？\n(画像が多い場合、時間がかかることがあります)")) return;
+
+                setIsSending(true);
+                try {
+                    const payload = {
+                        title: fileName.trim() || "作業書",
+                        steps: steps.map(s => ({
+                            text: s.text,
+                            image: s.image.split(',')[1] // Base64のヘッダー除去
+                        }))
+                    };
+
+                    const response = await fetch(gasUrl, {
+                        method: 'POST',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        credentials: 'omit',
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8' // シンプルリクエストとして送信
+                        },
+                        redirect: 'follow',
+                        body: JSON.stringify(payload),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        if(confirm(`ドキュメントが作成されました！\n開きますか？\nURL: ${result.url}`)) {
+                            window.open(result.url, '_blank');
+                        }
+                    } else {
+                        alert(`エラーが発生しました: ${result.message}`);
+                    }
+
+                } catch (error) {
+                    console.error("Docs送信エラー:", error);
+                    alert(`送信に失敗しました。\nエラー内容: ${error.message}\n\n【確認事項】\n1. GASのデプロイ設定で「実行するユーザー」が「自分」になっていますか？\n2. 「アクセスできるユーザー」が「全員」になっていますか？\n3. コード修正後に「新しいデプロイ」を行いましたか？`);
+                } finally {
+                    setIsSending(false);
+                }
             };
 
             const handlePrint = () => {
@@ -212,9 +313,10 @@
                                     <FileVideo className="w-8 h-8" />
                                     作業書作成支援ツール
                                 </h1>
-                                <p className="text-gray-500 text-sm mt-1">動画から画像を切り出し、説明を加えてPDFで出力します</p>
+                                <p className="text-gray-500 text-sm mt-1">動画から画像を切り出し、説明を加えてPDFやGoogleドキュメントへ出力します</p>
                             </div>
                             <div className="flex flex-wrap gap-2 justify-end items-center">
+                                
                                 {/* 保存・読込ボタン群 */}
                                 <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
                                     <div className="flex flex-col sm:flex-row items-center gap-1">
@@ -228,41 +330,69 @@
                                         />
                                     </div>
                                     <div className="h-6 w-px bg-gray-300 mx-1"></div>
-                                    <button 
-                                        onClick={saveData}
-                                        disabled={steps.length === 0}
-                                        className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 disabled:opacity-50 text-sm whitespace-nowrap"
-                                        title="編集データをPCに保存"
-                                    >
-                                        <Save className="w-4 h-4" />
-                                        保存
+                                    <button onClick={saveData} disabled={steps.length === 0} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 disabled:opacity-50 text-sm whitespace-nowrap" title="編集データをPCに保存">
+                                        <Save className="w-4 h-4" /> 保存
                                     </button>
-                                    <button 
-                                        onClick={() => jsonInputRef.current?.click()}
-                                        className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 text-sm whitespace-nowrap"
-                                        title="編集データを読み込み"
-                                    >
-                                        <Upload className="w-4 h-4" />
-                                        読込
+                                    <button onClick={() => jsonInputRef.current?.click()} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 text-sm whitespace-nowrap" title="編集データを読み込み">
+                                        <Upload className="w-4 h-4" /> 読込
                                     </button>
-                                    <input 
-                                        type="file" 
-                                        accept=".json"
-                                        ref={jsonInputRef}
-                                        className="hidden" 
-                                        onChange={loadData}
-                                    />
+                                    <input type="file" accept=".json" ref={jsonInputRef} className="hidden" onChange={loadData} />
                                 </div>
 
+                                {/* 出力ボタン群 */}
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={sendToGoogleDocs}
+                                        disabled={steps.length === 0 || isSending}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-md whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isSending ? <div className="spinner"></div> : <Cloud className="w-4 h-4" />}
+                                        Docs送信
+                                    </button>
+                                    
+                                    <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-md whitespace-nowrap">
+                                        <Printer className="w-4 h-4" />
+                                        印刷 / PDF
+                                    </button>
+                                </div>
+
+                                {/* 設定ボタン（常に表示・一番右） */}
                                 <button 
-                                    onClick={handlePrint}
-                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-md whitespace-nowrap"
+                                    onClick={() => setIsSettingsOpen(true)} 
+                                    className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors ml-1" 
+                                    title="Googleドキュメント連携設定"
                                 >
-                                    <Printer className="w-4 h-4" />
-                                    印刷 / PDF保存
+                                    <Settings className="w-5 h-5" />
                                 </button>
                             </div>
                         </header>
+
+                        {/* 設定モーダル（独立して配置） */}
+                        {isSettingsOpen && (
+                            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                                <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
+                                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                        <Settings className="w-5 h-5" />
+                                        Googleドキュメント連携設定
+                                    </h3>
+                                    <p className="text-sm text-gray-600 mb-4">
+                                        Google Apps Script (GAS) のウェブアプリURLを入力してください。<br/>
+                                        <span className="text-xs text-gray-400">※スクリプトを「全員」がアクセス可能としてデプロイする必要があります。</span>
+                                    </p>
+                                    <input 
+                                        type="text" 
+                                        value={gasUrl}
+                                        onChange={(e) => setGasUrl(e.target.value)}
+                                        className="w-full border p-2 rounded mb-4 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="https://script.google.com/macros/s/..."
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                        <button onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
+                                        <button onClick={saveGasUrl} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">保存</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Main Content Area */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 print-block">
@@ -317,14 +447,7 @@
                                             </p>
                                         </div>
                                     )}
-                                    <input 
-                                        type="file" 
-                                        accept="video/*" 
-                                        ref={fileInputRef}
-                                        className="hidden" 
-                                        onChange={handleFileUpload}
-                                    />
-                                    
+                                    <input type="file" accept="video/*" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                                     <canvas ref={canvasRef} className="hidden" />
                                 </div>
                             </div>
@@ -351,7 +474,7 @@
                                                 <p>2. 動画を再生し、切り出したいシーンで<b>「キャプチャ」</b>ボタンを押します。</p>
                                                 <p>3. 画像がここに追加されます。横のテキストボックスに説明を入力します。</p>
                                                 <p>4. 右上の<b>「データ保存」</b>で作業を一時保存できます。</p>
-                                                <p>5. 完成したら<b>「印刷 / PDF保存」</b>で書き出します。</p>
+                                                <p>5. <b>「Docs送信」</b>または<b>「印刷/PDF」</b>で書き出します。</p>
                                             </div>
                                         </div>
                                     ) : (
@@ -379,14 +502,32 @@
                                                         />
                                                     </div>
 
-                                                    {/* Delete Button */}
-                                                    <button 
-                                                        onClick={() => deleteStep(index)}
-                                                        className="absolute -top-3 -right-3 bg-white text-gray-400 hover:text-red-500 border shadow-sm p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print-hidden"
-                                                        title="この作業を削除"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    {/* Controls (Move Up/Down, Delete) */}
+                                                    <div className="absolute -top-3 -right-3 flex gap-1 print-hidden">
+                                                        <button 
+                                                            onClick={() => moveStep(index, -1)}
+                                                            disabled={index === 0}
+                                                            className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                            title="上へ移動"
+                                                        >
+                                                            <ArrowUp className="w-4 h-4" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => moveStep(index, 1)}
+                                                            disabled={index === steps.length - 1}
+                                                            className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                            title="下へ移動"
+                                                        >
+                                                            <ArrowDown className="w-4 h-4" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => deleteStep(index)}
+                                                            className="bg-white text-gray-400 hover:text-red-500 border shadow-sm p-1.5 rounded-md transition-colors"
+                                                            title="この作業を削除"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
