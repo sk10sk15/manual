@@ -103,7 +103,7 @@
         function App() {
             const [videoSrc, setVideoSrc] = useState(null);
             const [steps, setSteps] = useState([]);
-            const [fileName, setFileName] = useState("作業書データ");
+            const [fileName, setFileName] = useState("");
             
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
@@ -176,7 +176,7 @@
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                const name = fileName.trim() || "作業書データ";
+                const name = fileName.trim() || "";
                 link.download = `${name}.json`;
                 document.body.appendChild(link);
                 link.click();
