@@ -15,25 +15,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Docx.js (CDNを安定版のjsdelivrに変更) -->
-    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
-
     <style>
-        /* 画面表示用のスタイル */
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 3px solid #ffffff;
-            width: 20px;
-            height: 20px;
-            -webkit-animation: spin 1s linear infinite;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         /* --- 印刷用スタイル --- */
         @media print {
             @page { 
@@ -67,9 +49,9 @@
                 page-break-after: auto;
             }
 
-            /* 2つごとに改ページを促すなどの調整はブラウザ任せだが、高さを抑える */
+            /* 画像の高さを制限して1ページに収まりやすくする */
             .step-image-container {
-                max-height: 300px; /* 画像の高さを制限 */
+                max-height: 300px;
                 width: 50% !important;
             }
             
@@ -110,7 +92,6 @@
 
         const Camera = (props) => (<IconBase {...props}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></IconBase>);
         const FileVideo = (props) => (<IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="m10 11 5 3-5 3v-6z"></path></IconBase>);
-        const Download = (props) => (<IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></IconBase>);
         const Trash2 = (props) => (<IconBase {...props}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></IconBase>);
         const Printer = (props) => (<IconBase {...props}><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></IconBase>);
         const FileText = (props) => (<IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></IconBase>);
@@ -121,31 +102,11 @@
         function App() {
             const [videoSrc, setVideoSrc] = useState(null);
             const [steps, setSteps] = useState([]);
-            const [isExporting, setIsExporting] = useState(false);
             
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
             const fileInputRef = useRef(null);
             const jsonInputRef = useRef(null);
-
-            // ライブラリロード用
-            const ensureDocxLoaded = () => {
-                return new Promise((resolve, reject) => {
-                    if (window.docx) {
-                        resolve(window.docx);
-                        return;
-                    }
-                    console.log("docxライブラリをロードします...");
-                    const script = document.createElement('script');
-                    script.src = "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js";
-                    script.onload = () => {
-                        if (window.docx) resolve(window.docx);
-                        else reject(new Error("ライブラリのロードに失敗しました"));
-                    };
-                    script.onerror = () => reject(new Error("ネットワークエラー"));
-                    document.body.appendChild(script);
-                });
-            };
 
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
@@ -233,83 +194,6 @@
                 event.target.value = '';
             };
 
-            const exportToWord = async () => {
-                setIsExporting(true);
-                try {
-                    await ensureDocxLoaded();
-                    const { Document, Packer, Paragraph, Table, TableRow, TableCell, ImageRun, WidthType, TextRun, BorderStyle } = window.docx;
-
-                    const tableRows = steps.map(step => {
-                        const imageString = step.image.split(',')[1];
-                        const imageBuffer = Uint8Array.from(atob(imageString), c => c.charCodeAt(0));
-
-                        const image = new ImageRun({
-                            data: imageBuffer,
-                            transformation: { width: 300, height: 200 },
-                        });
-
-                        return new TableRow({
-                            children: [
-                                new TableCell({
-                                    children: [new Paragraph({ children: [image] })],
-                                    width: { size: 50, type: WidthType.PERCENTAGE },
-                                    margins: { top: 200, bottom: 200, left: 200, right: 200 },
-                                }),
-                                new TableCell({
-                                    children: [
-                                        new Paragraph({
-                                            children: [new TextRun({ text: step.text, size: 24 })],
-                                        })
-                                    ],
-                                    width: { size: 50, type: WidthType.PERCENTAGE },
-                                    verticalAlign: "center",
-                                    margins: { top: 200, bottom: 200, left: 200, right: 200 },
-                                }),
-                            ],
-                        });
-                    });
-
-                    const doc = new Document({
-                        sections: [{
-                            properties: {},
-                            children: [
-                                new Paragraph({
-                                    children: [new TextRun({ text: "手順書", size: 48, bold: true })],
-                                    spacing: { after: 400 },
-                                }),
-                                new Table({
-                                    rows: tableRows,
-                                    width: { size: 100, type: WidthType.PERCENTAGE },
-                                    borders: {
-                                        top: { style: BorderStyle.SINGLE, size: 1 },
-                                        bottom: { style: BorderStyle.SINGLE, size: 1 },
-                                        left: { style: BorderStyle.SINGLE, size: 1 },
-                                        right: { style: BorderStyle.SINGLE, size: 1 },
-                                        insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
-                                        insideVertical: { style: BorderStyle.SINGLE, size: 1 },
-                                    }
-                                }),
-                            ],
-                        }],
-                    });
-
-                    const blob = await Packer.toBlob(doc);
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `手順書_${new Date().toISOString().slice(0,10)}.docx`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    
-                } catch (error) {
-                    console.error("Export Error:", error);
-                    alert(`Wordファイルの作成に失敗しました。\nエラー: ${error.message}`);
-                } finally {
-                    setIsExporting(false);
-                }
-            };
-
             const handlePrint = () => {
                 window.print();
             };
@@ -323,9 +207,9 @@
                             <div>
                                 <h1 className="text-2xl font-bold flex items-center gap-2 text-indigo-600">
                                     <FileVideo className="w-8 h-8" />
-                                    動画マニュアル作成ツール
+                                    作業書作成支援ツール
                                 </h1>
-                                <p className="text-gray-500 text-sm mt-1">動画から画像を切り出し、説明を加えてWordに出力します</p>
+                                <p className="text-gray-500 text-sm mt-1">動画から画像を切り出し、説明を加えてPDFで出力します</p>
                             </div>
                             <div className="flex flex-wrap gap-2 justify-end">
                                 {/* 保存・読込ボタン群 */}
@@ -358,27 +242,10 @@
 
                                 <button 
                                     onClick={handlePrint}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-md"
                                 >
                                     <Printer className="w-4 h-4" />
-                                    印刷 / PDF
-                                </button>
-                                <button 
-                                    onClick={exportToWord}
-                                    disabled={steps.length === 0 || isExporting}
-                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] justify-center text-sm"
-                                >
-                                    {isExporting ? (
-                                        <>
-                                            <div className="spinner"></div>
-                                            <span>作成中...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Download className="w-4 h-4" />
-                                            <span>Word保存</span>
-                                        </>
-                                    )}
+                                    印刷 / PDF保存
                                 </button>
                             </div>
                         </header>
@@ -464,13 +331,13 @@
                                     {steps.length === 0 ? (
                                         <div className="flex flex-col items-center justify-center h-96 text-gray-400 print-hidden">
                                             <Camera className="w-16 h-16 mb-4 text-gray-200" />
-                                            <p className="text-lg font-medium text-gray-600">使い方のヒント</p>
+                                            <p className="text-lg font-bold text-gray-800">使い方</p>
                                             <div className="text-sm mt-4 space-y-2 text-left bg-gray-50 p-6 rounded-lg max-w-md">
                                                 <p>1. 左側の<b>「動画ファイルを選択」</b>から動画を読み込みます。</p>
                                                 <p>2. 動画を再生し、切り出したいシーンで<b>「キャプチャ」</b>ボタンを押します。</p>
                                                 <p>3. 画像がここに追加されます。横のテキストボックスに説明を入力します。</p>
                                                 <p>4. 右上の<b>「データ保存」</b>で作業を一時保存できます。</p>
-                                                <p>5. 完成したら<b>「Word保存」</b>や<b>「印刷/PDF」</b>で書き出します。</p>
+                                                <p>5. 完成したら<b>「印刷 / PDF保存」</b>で書き出します。</p>
                                             </div>
                                         </div>
                                     ) : (
