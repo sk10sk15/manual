@@ -229,7 +229,7 @@
             // --- Google Docsへ送信 ---
             const sendToGoogleDocs = async () => {
                 if (!gasUrl) {
-                    alert("設定ボタン(右上の歯車)からGoogle Apps ScriptのURLを登録してください。");
+                    alert("設定ボタンからGoogle Apps ScriptのURLを登録してください。");
                     setIsSettingsOpen(true);
                     return;
                 }
@@ -242,6 +242,7 @@
 
                 setIsSending(true);
                 try {
+                    // 画像データが大きすぎる場合の対策として、必要なら圧縮処理を入れる箇所だが今回はそのまま送信
                     const payload = {
                         title: fileName.trim() || "作業書",
                         steps: steps.map(s => ({
@@ -250,9 +251,12 @@
                         }))
                     };
 
+                    // GASはPOSTで受け取る
+                    // CORS回避のため no-cors ではなく、GAS側でCORSヘッダーを返す前提で fetch する
                     const response = await fetch(gasUrl, {
                         method: 'POST',
                         body: JSON.stringify(payload),
+                        // headers: { 'Content-Type': 'text/plain' } // GASのdoPostはplain textとして送ると扱いやすい場合がある
                     });
 
                     const result = await response.json();
@@ -292,6 +296,37 @@
                             </div>
                             <div className="flex flex-wrap gap-2 justify-end items-center">
                                 
+                                {/* 設定エリア */}
+                                {isSettingsOpen ? (
+                                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                                        <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
+                                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                                <Settings className="w-5 h-5" />
+                                                Googleドキュメント連携設定
+                                            </h3>
+                                            <p className="text-sm text-gray-600 mb-4">
+                                                Google Apps Script (GAS) のウェブアプリURLを入力してください。<br/>
+                                                <span className="text-xs text-gray-400">※スクリプトを「全員」がアクセス可能としてデプロイする必要があります。</span>
+                                            </p>
+                                            <input 
+                                                type="text" 
+                                                value={gasUrl}
+                                                onChange={(e) => setGasUrl(e.target.value)}
+                                                className="w-full border p-2 rounded mb-4 text-sm font-mono"
+                                                placeholder="https://script.google.com/macros/s/..."
+                                            />
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
+                                                <button onClick={saveGasUrl} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">保存</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => setIsSettingsOpen(true)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="連携設定">
+                                        <Settings className="w-5 h-5" />
+                                    </button>
+                                )}
+
                                 {/* 保存・読込ボタン群 */}
                                 <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
                                     <div className="flex flex-col sm:flex-row items-center gap-1">
@@ -330,44 +365,8 @@
                                         印刷 / PDF
                                     </button>
                                 </div>
-
-                                {/* 設定ボタン（常に表示・一番右） */}
-                                <button 
-                                    onClick={() => setIsSettingsOpen(true)} 
-                                    className="p-3 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full transition-colors ml-1" 
-                                    title="Googleドキュメント連携設定"
-                                >
-                                    <Settings className="w-5 h-5" />
-                                </button>
                             </div>
                         </header>
-
-                        {/* 設定モーダル（独立して配置） */}
-                        {isSettingsOpen && (
-                            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                                <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md">
-                                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                        <Settings className="w-5 h-5" />
-                                        Googleドキュメント連携設定
-                                    </h3>
-                                    <p className="text-sm text-gray-600 mb-4">
-                                        Google Apps Script (GAS) のウェブアプリURLを入力してください。<br/>
-                                        <span className="text-xs text-gray-400">※スクリプトを「全員」がアクセス可能としてデプロイする必要があります。</span>
-                                    </p>
-                                    <input 
-                                        type="text" 
-                                        value={gasUrl}
-                                        onChange={(e) => setGasUrl(e.target.value)}
-                                        className="w-full border p-2 rounded mb-4 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        placeholder="https://script.google.com/macros/s/..."
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                        <button onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">キャンセル</button>
-                                        <button onClick={saveGasUrl} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">保存</button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
 
                         {/* Main Content Area */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 print-block">
