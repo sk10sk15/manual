@@ -102,6 +102,7 @@
         function App() {
             const [videoSrc, setVideoSrc] = useState(null);
             const [steps, setSteps] = useState([]);
+            const [fileName, setFileName] = useState(""); // デフォルト名を変更
             
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
@@ -162,7 +163,9 @@
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `手順書データ_${new Date().toISOString().slice(0,19).replace(/[-:T]/g, '')}.json`;
+                // 日付を削除し、入力されたファイル名のみで保存
+                const name = fileName.trim() || "";
+                link.download = `${name}.json`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -211,25 +214,36 @@
                                 </h1>
                                 <p className="text-gray-500 text-sm mt-1">動画から画像を切り出し、説明を加えてPDFで出力します</p>
                             </div>
-                            <div className="flex flex-wrap gap-2 justify-end">
+                            <div className="flex flex-wrap gap-2 justify-end items-center">
                                 {/* 保存・読込ボタン群 */}
-                                <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
+                                <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
+                                    <div className="flex flex-col sm:flex-row items-center gap-1">
+                                        <label className="text-xs font-bold text-gray-500 whitespace-nowrap">保存名:</label>
+                                        <input 
+                                            type="text" 
+                                            value={fileName}
+                                            onChange={(e) => setFileName(e.target.value)}
+                                            className="border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                            placeholder="ファイル名"
+                                        />
+                                    </div>
+                                    <div className="h-6 w-px bg-gray-300 mx-1"></div>
                                     <button 
                                         onClick={saveData}
                                         disabled={steps.length === 0}
-                                        className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 disabled:opacity-50 text-sm"
+                                        className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 disabled:opacity-50 text-sm whitespace-nowrap"
                                         title="編集データをPCに保存"
                                     >
                                         <Save className="w-4 h-4" />
-                                        データ保存
+                                        保存
                                     </button>
                                     <button 
                                         onClick={() => jsonInputRef.current?.click()}
-                                        className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 text-sm"
+                                        className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 text-sm whitespace-nowrap"
                                         title="編集データを読み込み"
                                     >
                                         <Upload className="w-4 h-4" />
-                                        データ読込
+                                        読込
                                     </button>
                                     <input 
                                         type="file" 
@@ -242,7 +256,7 @@
 
                                 <button 
                                     onClick={handlePrint}
-                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-md"
+                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-md whitespace-nowrap"
                                 >
                                     <Printer className="w-4 h-4" />
                                     印刷 / PDF保存
@@ -299,7 +313,7 @@
                                                 </button>
                                             </div>
                                             <p className="text-xs text-gray-500 text-center">
-                                                動画を再生・一時停止し、「キャプチャ」ボタンで手順に追加します
+                                                動画を再生・一時停止し、「キャプチャ」ボタンで作業に追加します
                                             </p>
                                         </div>
                                     )}
@@ -321,10 +335,10 @@
                                     <div className="flex justify-between items-center mb-6 border-b pb-2 print-hidden">
                                         <h2 className="font-semibold flex items-center gap-2 text-lg">
                                             <FileText className="w-5 h-5 text-indigo-500" />
-                                            作成された手順 ({steps.length})
+                                            作成された作業項目 ({steps.length})
                                         </h2>
                                         {steps.length === 0 && (
-                                            <span className="text-sm text-gray-400">まだ手順がありません</span>
+                                            <span className="text-sm text-gray-400">まだ作業項目がありません</span>
                                         )}
                                     </div>
 
@@ -361,7 +375,7 @@
                                                             value={step.text}
                                                             onChange={(e) => handleTextChange(index, e.target.value)}
                                                             className="w-full h-full min-h-[120px] p-3 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none text-gray-700 leading-relaxed"
-                                                            placeholder="手順の説明を入力してください..."
+                                                            placeholder="作業の説明を入力してください..."
                                                         />
                                                     </div>
 
@@ -369,7 +383,7 @@
                                                     <button 
                                                         onClick={() => deleteStep(index)}
                                                         className="absolute -top-3 -right-3 bg-white text-gray-400 hover:text-red-500 border shadow-sm p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print-hidden"
-                                                        title="この手順を削除"
+                                                        title="この作業を削除"
                                                     >
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
