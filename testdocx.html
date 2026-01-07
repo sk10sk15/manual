@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Word作成ツール</title>
+    <!-- ライブラリの読み込み -->
+    <script src="unpkg.com"></script>
+    <script src="cdnjs.cloudflare.com"></script>
+</head>
+<body>
+    <h1>Wordファイル作成（ブラウザ完結型）</h1>
+    <button id="downloadBtn">Wordファイルを作成して保存</button>
+
+    <script>
+        document.getElementById('downloadBtn').addEventListener('click', async () => {
+            // 1. 文書の構造を定義
+            const doc = new docx.Document({
+                sections: [{
+                    children: [
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: "これはブラウザ上で作成されたWordファイルです。",
+                                    bold: true,
+                                    size: 32,
+                                }),
+                            ],
+                        }),
+                        new docx.Paragraph({
+                            text: "GitHub Pagesでもサーバーなしで動作します（2026年確認済み）。",
+                        }),
+                    ],
+                }],
+            });
+
+            // 2. Wordデータを生成（Blob形式）
+            const blob = await docx.Packer.toBlob(doc);
+
+            // 3. FileSaver.jsを使ってダウンロード
+            saveAs(blob, "GeneratedFile.docx");
+        });
+    </script>
+</body>
+</html>
