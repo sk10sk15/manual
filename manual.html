@@ -104,11 +104,26 @@
             const [videoSrc, setVideoSrc] = useState(null);
             const [steps, setSteps] = useState([]);
             const [fileName, setFileName] = useState("");
+            const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // 未保存フラグ
             
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
             const fileInputRef = useRef(null);
             const jsonInputRef = useRef(null);
+
+            // 未保存時の警告設定
+            useEffect(() => {
+                const handleBeforeUnload = (e) => {
+                    // データがあり、かつ未保存の場合に警告を出す
+                    if (hasUnsavedChanges && steps.length > 0) {
+                        e.preventDefault();
+                        e.returnValue = ''; // Chrome等の仕様で、ここでのメッセージ設定は無視され標準のダイアログが出る
+                    }
+                };
+
+                window.addEventListener('beforeunload', handleBeforeUnload);
+                return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+            }, [hasUnsavedChanges, steps]);
 
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
@@ -138,6 +153,7 @@
                     };
                     
                     setSteps([...steps, newStep]);
+                    setHasUnsavedChanges(true); // 変更あり
                 }
             };
 
@@ -147,10 +163,12 @@
                     newSteps[index].text = value;
                     return newSteps;
                 });
+                setHasUnsavedChanges(true); // 変更あり
             };
 
             const deleteStep = (index) => {
                 setSteps(prevSteps => prevSteps.filter((_, i) => i !== index));
+                setHasUnsavedChanges(true); // 変更あり
             };
 
             const moveStep = (index, direction) => {
@@ -163,6 +181,7 @@
                     newSteps[index + direction] = temp;
                     return newSteps;
                 });
+                setHasUnsavedChanges(true); // 変更あり
             };
 
             // --- データの保存 (JSON) ---
@@ -176,11 +195,13 @@
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                const name = fileName.trim() || "";
+                const name = fileName.trim() || "作業書データ";
                 link.download = `${name}.json`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                
+                setHasUnsavedChanges(false); // 保存済み状態へ
             };
 
             // --- データの読み込み (JSON) ---
@@ -193,10 +214,12 @@
                     try {
                         const loadedSteps = JSON.parse(e.target.result);
                         if (Array.isArray(loadedSteps)) {
-                            if (steps.length > 0) {
-                                if (!confirm("現在のデータは上書きされます。よろしいですか？")) return;
+                            // 未保存のデータがある場合の確認
+                            if (hasUnsavedChanges && steps.length > 0) {
+                                if (!confirm("保存されていない変更があります。上書きしてデータを読み込みますか？")) return;
                             }
                             setSteps(loadedSteps);
+                            setHasUnsavedChanges(false); // 読み込み直後は保存済み扱い
                         } else {
                             alert("ファイルの形式が正しくありません");
                         }
@@ -236,12 +259,22 @@
                                             value={fileName}
                                             onChange={(e) => setFileName(e.target.value)}
                                             className="border rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                                            placeholder="ファイル名"
+                                            placeholder="作業書データ"
                                         />
                                     </div>
                                     <div className="h-6 w-px bg-gray-300 mx-1"></div>
-                                    <button onClick={saveData} disabled={steps.length === 0} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 disabled:opacity-50 text-sm whitespace-nowrap" title="編集データをPCに保存">
-                                        <Save className="w-4 h-4" /> 保存
+                                    <button 
+                                        onClick={saveData}
+                                        disabled={steps.length === 0}
+                                        className={`flex items-center gap-1 px-3 py-2 rounded shadow-sm disabled:opacity-50 text-sm whitespace-nowrap transition-colors ${
+                                            hasUnsavedChanges && steps.length > 0 
+                                            ? "bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold" 
+                                            : "bg-white text-gray-700 hover:bg-gray-50"
+                                        }`}
+                                        title="編集データをPCに保存"
+                                    >
+                                        <Save className="w-4 h-4" /> 
+                                        {hasUnsavedChanges && steps.length > 0 ? "保存*" : "保存"}
                                     </button>
                                     <button onClick={() => jsonInputRef.current?.click()} className="flex items-center gap-1 px-3 py-2 bg-white text-gray-700 rounded shadow-sm hover:bg-gray-50 text-sm whitespace-nowrap" title="編集データを読み込み">
                                         <Upload className="w-4 h-4" /> 読込
