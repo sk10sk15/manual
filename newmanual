@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作業書作成支援ツール</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js"></script>
+
+    <style>
+        /* 画面表示用のスタイル */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- 印刷用スタイル --- */
+        @media print {
+            @page { 
+                margin: 15mm; 
+                size: A4; 
+            }
+            body { 
+                background: white; 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact;
+            }
+            .print-hidden { display: none !important; }
+            .print-block { display: block !important; }
+            .step-item {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                border: 1px solid #ccc !important;
+                margin-bottom: 15px !important;
+                padding: 10px !important;
+            }
+            textarea { 
+                border: none !important; 
+                resize: none !important; 
+                padding: 0 !important;
+            }
+            .main-content {
+                padding: 0 !important;
+                box-shadow: none !important;
+            }
+            .lg\:grid-cols-3 {
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        // --- Icons ---
+        const IconBase = ({ children, size = 24, className = "", ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                {children}
+            </svg>
+        );
+
+        const Camera = (props) => (
+            <IconBase {...props}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></IconBase>
+        );
+        const FileVideo = (props) => (
+            <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="m10 11 5 3-5 3v-6z"></path></IconBase>
+        );
+        const Download = (props) => (
+            <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></IconBase>
+        );
+        const Trash2 = (props) => (
+            <IconBase {...props}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></IconBase>
+        );
+        const Printer = (props) => (
+            <IconBase {...props}><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></IconBase>
+        );
+        const FileText = (props) => (
+            <IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></IconBase>
+        );
+
+        // --- Main Component ---
+        function App() {
+            const [videoSrc, setVideoSrc] = useState(null);
+            const [steps, setSteps] = useState([]);
+            const [isExporting, setIsExporting] = useState(false);
+            
+            const videoRef = useRef(null);
+            const canvasRef = useRef(null);
+            const fileInputRef = useRef(null);
+
+            const handleFileUpload = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const url = URL.createObjectURL(file);
+                    setVideoSrc(url);
+                }
+            };
+
+            const captureFrame = () => {
+                if (videoRef.current && canvasRef.current) {
+                    const video = videoRef.current;
+                    const canvas = canvasRef.current;
+                    
+                    // 動画の元サイズに合わせる
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    const dataUrl = canvas.toDataURL('image/jpeg');
+                    
+                    const newStep = {
+                        id: Date.now(),
+                        image: dataUrl,
+                        text: ``,
+                        width: video.videoWidth,
+                        height: video.videoHeight
+                    };
+                    
+                    setSteps([...steps, newStep]);
+                }
+            };
+
+            const handleTextChange = (index, value) => {
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    newSteps[index].text = value;
+                    return newSteps;
+                });
+            };
+
+            const deleteStep = (index) => {
+                setSteps(prevSteps => prevSteps.filter((_, i) => i !== index));
+            };
+
+            // ライブラリロード確認
+            const ensureDocxLoaded = () => {
+                return new Promise((resolve, reject) => {
+                    if (window.docx) {
+                        resolve(window.docx);
+                        return;
+                    }
+                    // 万が一ロードされていない場合のフォールバック
+                    const script = document.createElement('script');
+                    script.src = "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js";
+                    script.onload = () => window.docx ? resolve(window.docx) : reject(new Error("docx load failed"));
+                    script.onerror = () => reject(new Error("Network error loading docx"));
+                    document.body.appendChild(script);
+                });
+            };
+
+            const exportToWord = async () => {
+                if (steps.length === 0) {
+                    alert("出力する手順がありません。まずは画像をキャプチャしてください。");
+                    return;
+                }
+
+                setIsExporting(true);
+
+                try {
+                    await ensureDocxLoaded();
+                    const { Document, Packer, Paragraph, Table, TableRow, TableCell, ImageRun, WidthType, TextRun, BorderStyle } = window.docx;
+
+                    const tableRows = steps.map(step => {
+                        const imageString = step.image.split(',')[1];
+                        const imageBuffer = Uint8Array.from(atob(imageString), c => c.charCodeAt(0));
+
+                        // アスペクト比を維持してサイズ調整
+                        // Word内では幅300px程度が適切
+                        const targetWidth = 300; 
+                        const aspectRatio = step.height / step.width;
+                        const targetHeight = Math.floor(targetWidth * aspectRatio);
+
+                        const image = new ImageRun({
+                            data: imageBuffer,
+                            transformation: {
+                                width: targetWidth,
+                                height: targetHeight,
+                            },
+                        });
+
+                        return new TableRow({
+                            children: [
+                                new TableCell({
+                                    children: [new Paragraph({ children: [image] })],
+                                    width: { size: 40, type: WidthType.PERCENTAGE },
+                                    margins: { top: 100, bottom: 100, left: 100, right: 100 },
+                                }),
+                                new TableCell({
+                                    children: [
+                                        new Paragraph({
+                                            children: [new TextRun({ text: step.text || "（説明なし）", size: 24 })], // 24 = 12pt
+                                        })
+                                    ],
+                                    width: { size: 60, type: WidthType.PERCENTAGE },
+                                    verticalAlign: "center",
+                                    margins: { top: 100, bottom: 100, left: 100, right: 100 },
+                                }),
+                            ],
+                        });
+                    });
+
+                    const doc = new Document({
+                        sections: [{
+                            properties: {},
+                            children: [
+                                new Paragraph({
+                                    children: [new TextRun({ text: "作業手順書", size: 48, bold: true })],
+                                    spacing: { after: 400 },
+                                }),
+                                new Table({
+                                    rows: tableRows,
+                                    width: { size: 100, type: WidthType.PERCENTAGE },
+                                    borders: {
+                                        top: { style: BorderStyle.SINGLE, size: 1 },
+                                        bottom: { style: BorderStyle.SINGLE, size: 1 },
+                                        left: { style: BorderStyle.SINGLE, size: 1 },
+                                        right: { style: BorderStyle.SINGLE, size: 1 },
+                                        insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+                                        insideVertical: { style: BorderStyle.SINGLE, size: 1 },
+                                    }
+                                }),
+                            ],
+                        }],
+                    });
+
+                    const blob = await Packer.toBlob(doc);
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `手順書_${new Date().toISOString().slice(0,10)}.docx`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                } catch (error) {
+                    console.error("Export Error:", error);
+                    alert(`Wordファイルの作成に失敗しました。\nエラー: ${error.message}`);
+                } finally {
+                    setIsExporting(false);
+                }
+            };
+
+            const handlePrint = () => {
+                window.print();
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-6 font-sans text-gray-800">
+                    <div className="max-w-6xl mx-auto space-y-8">
+                        
+                        {/* Header */}
+                        <header className="flex justify-between items-center border-b pb-4 bg-white p-6 rounded-xl shadow-sm print-hidden">
+                            <div>
+                                <h1 className="text-2xl font-bold flex items-center gap-2 text-indigo-600">
+                                    <FileVideo className="w-8 h-8" />
+                                    作業書作成支援ツール
+                                </h1>
+                                <p className="text-gray-500 text-sm mt-1">動画から画像を切り出し、WordやPDFで出力します</p>
+                            </div>
+                            <div className="flex gap-3">
+                                {/* Word Export Button - Added Here */}
+                                <button 
+                                    onClick={exportToWord}
+                                    disabled={isExporting || steps.length === 0}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white transition-colors shadow-sm
+                                        ${isExporting || steps.length === 0 
+                                            ? 'bg-blue-300 cursor-not-allowed' 
+                                            : 'bg-blue-600 hover:bg-blue-700'}`}
+                                >
+                                    {isExporting ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            作成中...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="w-4 h-4" />
+                                            Word保存
+                                        </>
+                                    )}
+                                </button>
+
+                                {/* Print Button */}
+                                <button 
+                                    onClick={handlePrint}
+                                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                >
+                                    <Printer className="w-4 h-4" />
+                                    印刷 / PDF
+                                </button>
+                            </div>
+                        </header>
+
+                        {/* Main Content Area */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 print-block">
+                            
+                            {/* Left Column: Video Player & Controls */}
+                            <div className="lg:col-span-1 print-hidden">
+                                <div className="bg-white rounded-xl shadow-sm p-4 sticky top-6">
+                                    <h2 className="font-semibold mb-4 flex items-center gap-2">
+                                        <FileVideo className="w-5 h-5 text-indigo-500" />
+                                        ソース動画
+                                    </h2>
+                                    
+                                    {!videoSrc ? (
+                                        <div 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="border-2 border-dashed border-gray-300 rounded-lg h-64 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
+                                        >
+                                            <FileVideo className="w-12 h-12 text-gray-300 mb-2" />
+                                            <p className="text-gray-500 font-medium">動画ファイルを選択</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="relative rounded-lg overflow-hidden bg-black aspect-video group">
+                                                <video 
+                                                    ref={videoRef}
+                                                    src={videoSrc}
+                                                    controls
+                                                    className="w-full h-full object-contain"
+                                                    crossOrigin="anonymous"
+                                                />
+                                            </div>
+                                            
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={captureFrame}
+                                                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-md active:transform active:scale-95"
+                                                >
+                                                    <Camera className="w-5 h-5" />
+                                                    キャプチャ
+                                                </button>
+                                                <button 
+                                                    onClick={() => setVideoSrc(null)}
+                                                    className="px-3 py-3 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                                                    title="動画を変更"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <input 
+                                        type="file" 
+                                        accept="video/*" 
+                                        ref={fileInputRef}
+                                        className="hidden" 
+                                        onChange={handleFileUpload}
+                                    />
+                                    
+                                    <canvas ref={canvasRef} className="hidden" />
+                                </div>
+                            </div>
+
+                            {/* Right Column: Step List */}
+                            <div className="lg:col-span-2">
+                                <div className="bg-white rounded-xl shadow-sm p-6 min-h-[600px] main-content">
+                                    <div className="flex justify-between items-center mb-6 border-b pb-2 print-hidden">
+                                        <h2 className="font-semibold flex items-center gap-2 text-lg">
+                                            <FileText className="w-5 h-5 text-indigo-500" />
+                                            作成手順 ({steps.length})
+                                        </h2>
+                                    </div>
+
+                                    {steps.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-96 text-gray-400 print-hidden">
+                                            <Camera className="w-16 h-16 mb-4 text-gray-200" />
+                                            <p className="text-lg font-medium text-gray-600">キャプチャしてください</p>
+                                            <div className="text-sm mt-4 text-gray-500">
+                                                動画を再生し、必要な場面で「キャプチャ」ボタンを押すとここに追加されます。
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-8 print:space-y-0">
+                                            {steps.map((step, index) => (
+                                                <div key={step.id} className="group relative flex flex-col md:flex-row gap-6 p-4 rounded-xl border border-gray-100 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all step-item">
+                                                    
+                                                    {/* Image Area */}
+                                                    <div className="w-full md:w-1/2 flex-shrink-0">
+                                                        <div className="relative rounded-lg overflow-hidden border border-gray-200 shadow-sm aspect-video bg-gray-100">
+                                                            <img src={step.image} alt={`Step ${index + 1}`} className="w-full h-full object-contain" />
+                                                            <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md font-mono">
+                                                                Step {index + 1}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Text Area */}
+                                                    <div className="w-full md:w-1/2 flex flex-col gap-2">
+                                                        <textarea
+                                                            value={step.text}
+                                                            onChange={(e) => handleTextChange(index, e.target.value)}
+                                                            className="w-full h-full min-h-[120px] p-3 rounded-lg border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none resize-none text-gray-700 leading-relaxed"
+                                                            placeholder="手順の説明を入力..."
+                                                        />
+                                                    </div>
+
+                                                    {/* Delete Button */}
+                                                    <button 
+                                                        onClick={() => deleteStep(index)}
+                                                        className="absolute -top-3 -right-3 bg-white text-gray-400 hover:text-red-500 border shadow-sm p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print-hidden"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
