@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>作業書作成支援ツール (動画版)</title>
     
-    <!-- Favicon (SVG埋め込み: インディゴブルーの再生ボタン風アイコン) -->
+    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='8' width='48' height='48' rx='8' fill='%234f46e5'/%3E%3Cpath d='M26 22 L26 42 L44 32 Z' fill='%23ffffff'/%3E%3C/svg%3E">
 
     <!-- React & ReactDOM -->
@@ -55,12 +55,10 @@
             /* 横並び（デフォルト）時のスタイル */
             .step-row .step-image-container {
                 max-height: 300px;
-                width: 50% !important;
+                /* widthはインラインスタイル（splitRatio）で制御されるため、固定値は設定しない */
                 overflow: hidden !important;
             }
-            .step-row .step-text-container {
-                width: 50% !important;
-            }
+            /* .step-row .step-text-container のwidthはインラインスタイル（splitRatio）で制御されるため、固定値は設定しない */
 
             /* 縦並び（強調）時のスタイル */
             .step-col {
@@ -122,6 +120,9 @@
         const RefreshCcw = (props) => (<IconBase {...props}><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></IconBase>);
         const LayoutRow = (props) => (<IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></IconBase>);
         const LayoutCol = (props) => (<IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></IconBase>);
+        const ArrowRight = (props) => (<IconBase {...props}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></IconBase>);
+        const Circle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle></IconBase>);
+        const X = (props) => (<IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></IconBase>);
 
         // --- Main Component ---
         function App() {
@@ -137,6 +138,26 @@
                 startY: 0,
                 initialImgX: 0,
                 initialImgY: 0
+            });
+            
+            const [splitDragState, setSplitDragState] = useState({
+                isDragging: false,
+                stepIndex: null,
+                startX: 0,
+                containerWidth: 0,
+                initialRatio: 0.5
+            });
+            
+            const [annotationTool, setAnnotationTool] = useState(null); // 'arrow' | 'circle' | null
+            const [hoveredAnnotation, setHoveredAnnotation] = useState(null); // {stepIndex, annotationId} | null
+            const [annotationDragState, setAnnotationDragState] = useState({
+                isDragging: false,
+                stepIndex: null,
+                annotationId: null,
+                startX: 0,
+                startY: 0,
+                initialX: 0,
+                initialY: 0
             });
             
             const videoRef = useRef(null);
@@ -200,6 +221,228 @@
                 };
             }, [dragState]);
 
+            // 分割バーのドラッグハンドラ
+            const handleSplitMouseDown = (index, e, containerRef) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const container = containerRef.current;
+                if (container) {
+                    setSplitDragState({
+                        isDragging: true,
+                        stepIndex: index,
+                        startX: e.clientX,
+                        containerWidth: container.offsetWidth,
+                        initialRatio: steps[index].splitRatio || 0.5
+                    });
+                }
+            };
+
+            const handleSplitMouseMove = (e) => {
+                if (!splitDragState.isDragging || splitDragState.stepIndex === null) return;
+                
+                e.preventDefault();
+                const deltaX = e.clientX - splitDragState.startX;
+                const newRatio = splitDragState.initialRatio + (deltaX / splitDragState.containerWidth);
+                const clampedRatio = Math.max(0.2, Math.min(0.8, newRatio)); // 20%〜80%の範囲に制限
+                
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    newSteps[splitDragState.stepIndex].splitRatio = clampedRatio;
+                    return newSteps;
+                });
+                setHasUnsavedChanges(true);
+            };
+
+            const handleSplitMouseUp = () => {
+                if (splitDragState.isDragging) {
+                    setSplitDragState({ isDragging: false, stepIndex: null, startX: 0, containerWidth: 0, initialRatio: 0.5 });
+                }
+            };
+
+            useEffect(() => {
+                if (splitDragState.isDragging) {
+                    window.addEventListener('mousemove', handleSplitMouseMove);
+                    window.addEventListener('mouseup', handleSplitMouseUp);
+                    return () => {
+                        window.removeEventListener('mousemove', handleSplitMouseMove);
+                        window.removeEventListener('mouseup', handleSplitMouseUp);
+                    };
+                }
+            }, [splitDragState]);
+
+            // 注釈の追加
+            const addAnnotation = (stepIndex, type, x, y, containerRef) => {
+                if (!annotationTool || !containerRef.current) return;
+                
+                const container = containerRef.current;
+                const rect = container.getBoundingClientRect();
+                const relativeX = ((x - rect.left) / rect.width) * 100;
+                const relativeY = ((y - rect.top) / rect.height) * 100;
+                
+                const newAnnotation = {
+                    id: Date.now(),
+                    type: type, // 'arrow' or 'circle'
+                    x: relativeX, // パーセンテージ
+                    y: relativeY, // パーセンテージ
+                    size: 1.0, // サイズ（デフォルト1.0）
+                    rotation: 0, // 回転角度（度、矢印のみ）
+                    length: 16, // 矢印の長さ（矢印のみ、デフォルト16）
+                };
+                
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    if (!newSteps[stepIndex].annotations) {
+                        newSteps[stepIndex].annotations = [];
+                    }
+                    newSteps[stepIndex].annotations.push(newAnnotation);
+                    return newSteps;
+                });
+                setHasUnsavedChanges(true);
+                setAnnotationTool(null); // ツールをリセット
+            };
+
+            // 注釈の削除
+            const deleteAnnotation = (stepIndex, annotationId) => {
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    if (newSteps[stepIndex].annotations) {
+                        newSteps[stepIndex].annotations = newSteps[stepIndex].annotations.filter(
+                            ann => ann.id !== annotationId
+                        );
+                    }
+                    return newSteps;
+                });
+                setHasUnsavedChanges(true);
+            };
+
+            // 注釈のドラッグ開始
+            const handleAnnotationMouseDown = (stepIndex, annotationId, e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const annotation = steps[stepIndex].annotations.find(ann => ann.id === annotationId);
+                if (!annotation) return;
+                
+                setAnnotationDragState({
+                    isDragging: true,
+                    stepIndex: stepIndex,
+                    annotationId: annotationId,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    initialX: annotation.x,
+                    initialY: annotation.y
+                });
+            };
+
+            // 注釈のドラッグ移動
+            const handleAnnotationMouseMove = (e) => {
+                if (!annotationDragState.isDragging || annotationDragState.stepIndex === null) return;
+                
+                e.preventDefault();
+                const stepContainers = document.querySelectorAll('.step-image-container');
+                const container = stepContainers[annotationDragState.stepIndex]?.querySelector('.relative');
+                if (!container) return;
+                
+                const rect = container.getBoundingClientRect();
+                const deltaX = e.clientX - annotationDragState.startX;
+                const deltaY = e.clientY - annotationDragState.startY;
+                
+                // SVGのviewBoxが0-100なので、パーセンテージを直接計算
+                const deltaXPercent = (deltaX / rect.width) * 100;
+                const deltaYPercent = (deltaY / rect.height) * 100;
+                
+                const newX = Math.max(0, Math.min(100, annotationDragState.initialX + deltaXPercent));
+                const newY = Math.max(0, Math.min(100, annotationDragState.initialY + deltaYPercent));
+                
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    const annotation = newSteps[annotationDragState.stepIndex].annotations.find(
+                        ann => ann.id === annotationDragState.annotationId
+                    );
+                    if (annotation) {
+                        annotation.x = newX;
+                        annotation.y = newY;
+                    }
+                    return newSteps;
+                });
+                setHasUnsavedChanges(true);
+            };
+
+            const handleAnnotationMouseUp = () => {
+                if (annotationDragState.isDragging) {
+                    setAnnotationDragState({ 
+                        isDragging: false, 
+                        stepIndex: null, 
+                        annotationId: null, 
+                        startX: 0, 
+                        startY: 0, 
+                        initialX: 0, 
+                        initialY: 0 
+                    });
+                }
+            };
+
+            useEffect(() => {
+                if (annotationDragState.isDragging) {
+                    window.addEventListener('mousemove', handleAnnotationMouseMove);
+                    window.addEventListener('mouseup', handleAnnotationMouseUp);
+                    return () => {
+                        window.removeEventListener('mousemove', handleAnnotationMouseMove);
+                        window.removeEventListener('mouseup', handleAnnotationMouseUp);
+                    };
+                }
+            }, [annotationDragState]);
+
+            // 注釈のサイズ変更
+            const resizeAnnotation = (stepIndex, annotationId, delta) => {
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    const annotation = newSteps[stepIndex].annotations.find(
+                        ann => ann.id === annotationId
+                    );
+                    if (annotation) {
+                        const currentSize = annotation.size || 1.0;
+                        const newSize = Math.max(0.5, Math.min(3.0, currentSize + delta));
+                        annotation.size = newSize;
+                    }
+                    return newSteps;
+                });
+                setHasUnsavedChanges(true);
+            };
+
+            // 矢印の回転
+            const rotateAnnotation = (stepIndex, annotationId, delta) => {
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    const annotation = newSteps[stepIndex].annotations.find(
+                        ann => ann.id === annotationId
+                    );
+                    if (annotation && annotation.type === 'arrow') {
+                        const currentRotation = annotation.rotation || 0;
+                        const newRotation = (currentRotation + delta) % 360;
+                        annotation.rotation = newRotation < 0 ? newRotation + 360 : newRotation;
+                    }
+                    return newSteps;
+                });
+                setHasUnsavedChanges(true);
+            };
+
+            // 矢印の長さ変更
+            const changeArrowLength = (stepIndex, annotationId, delta) => {
+                setSteps(prevSteps => {
+                    const newSteps = [...prevSteps];
+                    const annotation = newSteps[stepIndex].annotations.find(
+                        ann => ann.id === annotationId
+                    );
+                    if (annotation && annotation.type === 'arrow') {
+                        const currentLength = annotation.length || 16;
+                        const newLength = Math.max(8, Math.min(40, currentLength + delta));
+                        annotation.length = newLength;
+                    }
+                    return newSteps;
+                });
+                setHasUnsavedChanges(true);
+            };
+
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
                 if (file) {
@@ -229,6 +472,8 @@
                         x: 0, 
                         y: 0,
                         layout: 'row',
+                        splitRatio: 0.5, // デフォルトは50:50
+                        annotations: [], // 注釈配列
                     };
                     
                     setSteps([...steps, newStep]);
@@ -268,6 +513,10 @@
                     const newSteps = [...prevSteps];
                     const currentLayout = newSteps[index].layout || 'row';
                     newSteps[index].layout = currentLayout === 'row' ? 'col' : 'row';
+                    // レイアウト切り替え時にsplitRatioをリセット（横並びに戻す時）
+                    if (currentLayout === 'col') {
+                        newSteps[index].splitRatio = 0.5;
+                    }
                     return newSteps;
                 });
                 setHasUnsavedChanges(true);
@@ -320,7 +569,40 @@
                     return newSteps;
                 });
                 setHasUnsavedChanges(true);
-            }
+            };
+
+            // データ読み込み時にsplitRatioやannotationsが無い場合はデフォルト値を設定
+            useEffect(() => {
+                setSteps(prevSteps => {
+                    return prevSteps.map(step => {
+                        const updated = { ...step };
+                        if (updated.splitRatio === undefined) {
+                            updated.splitRatio = 0.5;
+                        }
+                        if (updated.annotations === undefined) {
+                            updated.annotations = [];
+                        } else {
+                            // 既存の注釈にsize、rotation、lengthプロパティがない場合は追加
+                            updated.annotations = updated.annotations.map(ann => {
+                                const updatedAnn = { ...ann };
+                                if (updatedAnn.size === undefined) {
+                                    updatedAnn.size = 1.0;
+                                }
+                                if (updatedAnn.type === 'arrow') {
+                                    if (updatedAnn.rotation === undefined) {
+                                        updatedAnn.rotation = 0;
+                                    }
+                                    if (updatedAnn.length === undefined) {
+                                        updatedAnn.length = 16;
+                                    }
+                                }
+                                return updatedAnn;
+                            });
+                        }
+                        return updated;
+                    });
+                });
+            }, []);
 
             // --- データの保存 (JSON) ---
             const saveData = () => {
@@ -535,12 +817,22 @@
                                                     {/* Image Area */}
                                                     <div 
                                                         className={`flex-shrink-0 step-image-container relative cursor-move ${
-                                                            isColLayout ? 'w-full' : 'w-full md:w-1/2'
+                                                            isColLayout ? 'w-full' : ''
                                                         }`}
+                                                        style={!isColLayout ? { width: `${(steps[index].splitRatio || 0.5) * 100}%` } : {}}
                                                         onMouseDown={(e) => handleImageMouseDown(index, e)}
                                                     >
                                                         {/* aspect-videoで固定比率 */}
-                                                        <div className={`relative w-full overflow-hidden border border-gray-200 shadow-sm aspect-video bg-gray-100 flex items-center justify-center`}>
+                                                        <div 
+                                                            className={`relative w-full overflow-hidden border border-gray-200 shadow-sm aspect-video bg-gray-100 flex items-center justify-center`}
+                                                            onClick={(e) => {
+                                                                if (annotationTool && (e.target === e.currentTarget || e.target.tagName === 'svg' || e.target.tagName === 'IMG')) {
+                                                                    const containerRef = { current: e.currentTarget };
+                                                                    addAnnotation(index, annotationTool, e.clientX, e.clientY, containerRef);
+                                                                }
+                                                            }}
+                                                            style={{ cursor: annotationTool ? 'crosshair' : 'default' }}
+                                                        >
                                                             <img 
                                                                 src={step.image} 
                                                                 alt={`Step ${index + 1}`} 
@@ -550,51 +842,335 @@
                                                                 }}
                                                                 draggable="false"
                                                             />
+                                                            
+                                                            {/* 注釈オーバーレイ (SVG) */}
+                                                            <svg 
+                                                                className="absolute inset-0 w-full h-full pointer-events-none z-20"
+                                                                style={{ pointerEvents: annotationTool ? 'auto' : 'none' }}
+                                                                viewBox="0 0 100 100"
+                                                                preserveAspectRatio="xMidYMid meet"
+                                                            >
+                                                                {(step.annotations || []).map((annotation) => {
+                                                                    const x = annotation.x;
+                                                                    const y = annotation.y;
+                                                                    const isHovered = hoveredAnnotation && 
+                                                                        hoveredAnnotation.stepIndex === index && 
+                                                                        hoveredAnnotation.annotationId === annotation.id;
+                                                                    const arrowLength = annotation.type === 'arrow' ? (annotation.length || 16) : 0;
+                                                                    const arrowRotation = annotation.type === 'arrow' ? (annotation.rotation || 0) : 0;
+                                                                    
+                                                                    return (
+                                                                        <g 
+                                                                            key={annotation.id}
+                                                                            transform={`translate(${x}, ${y}) scale(${annotation.size || 1.0})`}
+                                                                            className="pointer-events-auto"
+                                                                            onMouseEnter={() => {
+                                                                                if (!annotationTool) {
+                                                                                    // 別の図形にホバーしたときは、前の図形のホバー状態を解除して新しい状態を設定
+                                                                                    setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                }
+                                                                            }}
+                                                                            onMouseLeave={() => {
+                                                                                // ボタンに移動する際はホバー状態を維持するため、少し遅延させる
+                                                                                setTimeout(() => {
+                                                                                    setHoveredAnnotation(prev => {
+                                                                                        // 別の図形にホバーしている場合は解除しない
+                                                                                        if (prev && prev.stepIndex === index && prev.annotationId === annotation.id) {
+                                                                                            return null;
+                                                                                        }
+                                                                                        return prev;
+                                                                                    });
+                                                                                }, 150);
+                                                                            }}
+                                                                        >
+                                                                            {/* 広いホバー領域（透明） */}
+                                                                            <circle 
+                                                                                cx="0" 
+                                                                                cy="0" 
+                                                                                r="15" 
+                                                                                fill="transparent" 
+                                                                                className="cursor-move"
+                                                                                onMouseDown={(e) => {
+                                                                                    if (!annotationTool) {
+                                                                                        handleAnnotationMouseDown(index, annotation.id, e);
+                                                                                    }
+                                                                                    e.stopPropagation();
+                                                                                }}
+                                                                                onMouseEnter={() => {
+                                                                                    if (!annotationTool) {
+                                                                                        setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                    }
+                                                                                }}
+                                                                                style={{ cursor: annotationTool ? 'crosshair' : 'move' }}
+                                                                            />
+                                                                            
+                                                                            {annotation.type === 'arrow' && (
+                                                                                <g transform={`rotate(${arrowRotation})`}>
+                                                                                    <line 
+                                                                                        x1={-arrowLength / 2} 
+                                                                                        y1="0" 
+                                                                                        x2={arrowLength / 2 - 2} 
+                                                                                        y2="0" 
+                                                                                        stroke="#dc2626" 
+                                                                                        strokeWidth="1.5" 
+                                                                                        strokeLinecap="round"
+                                                                                        className="pointer-events-none"
+                                                                                    />
+                                                                                    <polygon 
+                                                                                        points={`${arrowLength / 2},0 ${arrowLength / 2 - 4},-3 ${arrowLength / 2 - 4},3`}
+                                                                                        fill="#dc2626" 
+                                                                                        stroke="#dc2626" 
+                                                                                        strokeWidth="1.2"
+                                                                                        className="pointer-events-none"
+                                                                                    />
+                                                                                </g>
+                                                                            )}
+                                                                            {annotation.type === 'circle' && (
+                                                                                <circle 
+                                                                                    cx="0" 
+                                                                                    cy="0" 
+                                                                                    r="5" 
+                                                                                    fill="none" 
+                                                                                    stroke="#dc2626" 
+                                                                                    strokeWidth="1.5"
+                                                                                    className="pointer-events-none"
+                                                                                />
+                                                                            )}
+                                                                            {/* 削除ボタンとサイズ変更ボタン - ホバー時のみ表示 */}
+                                                                            {!annotationTool && isHovered && (
+                                                                                <>
+                                                                                    {/* 削除ボタン - 矢印の場合は左上、円形の場合は右上 */}
+                                                                                    <g 
+                                                                                        className="cursor-pointer hover:opacity-80 print-hidden"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            deleteAnnotation(index, annotation.id);
+                                                                                        }}
+                                                                                        onMouseEnter={() => {
+                                                                                            setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                        }}
+                                                                                        transform={annotation.type === 'arrow' ? "translate(-7, -7)" : "translate(7, -7)"}
+                                                                                    >
+                                                                                        <circle cx="0" cy="0" r="2" fill="#dc2626" />
+                                                                                        <line x1="-1" y1="0" x2="1" y2="0" stroke="white" strokeWidth="0.5" />
+                                                                                    </g>
+                                                                                    {/* サイズ変更ボタン */}
+                                                                                    <g 
+                                                                                        className="cursor-pointer hover:opacity-80 print-hidden"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            resizeAnnotation(index, annotation.id, 0.2);
+                                                                                        }}
+                                                                                        onMouseEnter={() => {
+                                                                                            setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                        }}
+                                                                                        transform="translate(7, 7)"
+                                                                                        title="拡大"
+                                                                                    >
+                                                                                        <circle cx="0" cy="0" r="2" fill="#3b82f6" />
+                                                                                        <line x1="0" y1="-0.8" x2="0" y2="0.8" stroke="white" strokeWidth="0.4" />
+                                                                                        <line x1="-0.8" y1="0" x2="0.8" y2="0" stroke="white" strokeWidth="0.4" />
+                                                                                    </g>
+                                                                                    <g 
+                                                                                        className="cursor-pointer hover:opacity-80 print-hidden"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            resizeAnnotation(index, annotation.id, -0.2);
+                                                                                        }}
+                                                                                        onMouseEnter={() => {
+                                                                                            setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                        }}
+                                                                                        transform="translate(-7, 7)"
+                                                                                        title="縮小"
+                                                                                    >
+                                                                                        <circle cx="0" cy="0" r="2" fill="#3b82f6" />
+                                                                                        <line x1="-0.8" y1="0" x2="0.8" y2="0" stroke="white" strokeWidth="0.4" />
+                                                                                    </g>
+                                                                                    {/* 矢印専用: 回転ボタン */}
+                                                                                    {annotation.type === 'arrow' && (
+                                                                                        <>
+                                                                                            <g 
+                                                                                                className="cursor-pointer hover:opacity-80 print-hidden"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    rotateAnnotation(index, annotation.id, 15);
+                                                                                                }}
+                                                                                                onMouseEnter={() => {
+                                                                                                    setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                                }}
+                                                                                                transform="translate(0, -7)"
+                                                                                                title="時計回りに回転"
+                                                                                            >
+                                                                                                <circle cx="0" cy="0" r="2" fill="#10b981" />
+                                                                                                <path d="M 0 -1 L 0.5 0.5 M 0 -1 L -0.5 0.5" stroke="white" strokeWidth="0.4" fill="none" strokeLinecap="round" />
+                                                                                            </g>
+                                                                                            <g 
+                                                                                                className="cursor-pointer hover:opacity-80 print-hidden"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    rotateAnnotation(index, annotation.id, -15);
+                                                                                                }}
+                                                                                                onMouseEnter={() => {
+                                                                                                    setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                                }}
+                                                                                                transform="translate(7, -7)"
+                                                                                                title="反時計回りに回転"
+                                                                                            >
+                                                                                                <circle cx="0" cy="0" r="2" fill="#10b981" />
+                                                                                                <path d="M 0 -1 L -0.5 0.5 M 0 -1 L 0.5 0.5" stroke="white" strokeWidth="0.4" fill="none" strokeLinecap="round" />
+                                                                                            </g>
+                                                                                            {/* 矢印の長さ変更ボタン */}
+                                                                                            <g 
+                                                                                                className="cursor-pointer hover:opacity-80 print-hidden"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    changeArrowLength(index, annotation.id, 2);
+                                                                                                }}
+                                                                                                onMouseEnter={() => {
+                                                                                                    setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                                }}
+                                                                                                transform="translate(-7, 7)"
+                                                                                                title="長さを伸ばす"
+                                                                                            >
+                                                                                                <circle cx="0" cy="0" r="2" fill="#f59e0b" />
+                                                                                                <line x1="-0.8" y1="0" x2="0.8" y2="0" stroke="white" strokeWidth="0.4" />
+                                                                                                <line x1="0" y1="-0.5" x2="0" y2="0.5" stroke="white" strokeWidth="0.4" />
+                                                                                            </g>
+                                                                                            <g 
+                                                                                                className="cursor-pointer hover:opacity-80 print-hidden"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    changeArrowLength(index, annotation.id, -2);
+                                                                                                }}
+                                                                                                onMouseEnter={() => {
+                                                                                                    setHoveredAnnotation({ stepIndex: index, annotationId: annotation.id });
+                                                                                                }}
+                                                                                                transform="translate(0, 7)"
+                                                                                                title="長さを縮める"
+                                                                                            >
+                                                                                                <circle cx="0" cy="0" r="2" fill="#f59e0b" />
+                                                                                                <line x1="-0.8" y1="0" x2="0.8" y2="0" stroke="white" strokeWidth="0.4" />
+                                                                                            </g>
+                                                                                        </>
+                                                                                    )}
+                                                                                </>
+                                                                            )}
+                                                                        </g>
+                                                                    );
+                                                                })}
+                                                                {/* 矢印のマーカー定義 */}
+                                                                <defs>
+                                                                    <marker 
+                                                                        id="arrowhead-red" 
+                                                                        markerWidth="1" 
+                                                                        markerHeight="1" 
+                                                                        refX="0.9" 
+                                                                        refY="0.3" 
+                                                                        orient="auto"
+                                                                        markerUnits="strokeWidth"
+                                                                    >
+                                                                        <polygon points="0 0, 1 0.3, 0 0.6" fill="#dc2626" />
+                                                                    </marker>
+                                                                </defs>
+                                                            </svg>
+                                                            
                                                             <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md font-mono z-10 pointer-events-none">
                                                                 Step {index + 1}
                                                             </div>
                                                         </div>
                                                         
-                                                        {/* Controls Overlay */}
+                                                        {/* Controls - 画像の下に配置 */}
                                                         <div 
-                                                            className="absolute bottom-3 right-3 flex gap-2 print-hidden"
+                                                            className="flex flex-wrap items-center justify-center gap-2 mt-2 print-hidden"
                                                             onMouseDown={(e) => e.stopPropagation()} 
                                                         >
-                                                            <button 
-                                                                onClick={() => resetImage(index)}
-                                                                className="bg-white/90 text-gray-700 hover:text-red-500 hover:bg-white shadow-md p-2 rounded-full transition-colors"
-                                                                title="位置と拡大をリセット"
-                                                            >
-                                                                <RefreshCcw className="w-5 h-5" />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => zoomImage(index, -0.1)}
-                                                                className="bg-white/90 text-gray-700 hover:text-indigo-600 hover:bg-white shadow-md p-2 rounded-full transition-colors"
-                                                                title="縮小"
-                                                            >
-                                                                <ZoomOut className="w-5 h-5" />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => zoomImage(index, 0.1)}
-                                                                className="bg-white/90 text-gray-700 hover:text-indigo-600 hover:bg-white shadow-md p-2 rounded-full transition-colors"
-                                                                title="拡大"
-                                                            >
-                                                                <ZoomIn className="w-5 h-5" />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => rotateImage(index)}
-                                                                className="bg-white/90 text-gray-700 hover:text-indigo-600 hover:bg-white shadow-md p-2 rounded-full transition-colors"
-                                                                title="画像を90度回転"
-                                                            >
-                                                                <RotateCw className="w-5 h-5" />
-                                                            </button>
+                                                            {/* 注釈ツール */}
+                                                            <div className="flex gap-2 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                                                                <button 
+                                                                    onClick={() => setAnnotationTool(annotationTool === 'arrow' ? null : 'arrow')}
+                                                                    className={`p-2 rounded transition-colors ${
+                                                                        annotationTool === 'arrow' 
+                                                                            ? 'bg-red-500 text-white' 
+                                                                            : 'text-gray-700 hover:bg-red-50 hover:text-red-600'
+                                                                    }`}
+                                                                    title="矢印を追加"
+                                                                >
+                                                                    <ArrowRight className="w-5 h-5" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => setAnnotationTool(annotationTool === 'circle' ? null : 'circle')}
+                                                                    className={`p-2 rounded transition-colors ${
+                                                                        annotationTool === 'circle' 
+                                                                            ? 'bg-red-500 text-white' 
+                                                                            : 'text-gray-700 hover:bg-red-50 hover:text-red-600'
+                                                                    }`}
+                                                                    title="円形を追加"
+                                                                >
+                                                                    <Circle className="w-5 h-5" />
+                                                                </button>
+                                                            </div>
+                                                            
+                                                            {/* 画像操作ツール */}
+                                                            <div className="flex gap-2 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                                                                <button 
+                                                                    onClick={() => resetImage(index)}
+                                                                    className="bg-white text-gray-700 hover:text-red-500 hover:bg-red-50 shadow-sm p-2 rounded transition-colors"
+                                                                    title="位置と拡大をリセット"
+                                                                >
+                                                                    <RefreshCcw className="w-5 h-5" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => zoomImage(index, -0.1)}
+                                                                    className="bg-white text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm p-2 rounded transition-colors"
+                                                                    title="縮小"
+                                                                >
+                                                                    <ZoomOut className="w-5 h-5" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => zoomImage(index, 0.1)}
+                                                                    className="bg-white text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm p-2 rounded transition-colors"
+                                                                    title="拡大"
+                                                                >
+                                                                    <ZoomIn className="w-5 h-5" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => rotateImage(index)}
+                                                                    className="bg-white text-gray-700 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm p-2 rounded transition-colors"
+                                                                    title="画像を90度回転"
+                                                                >
+                                                                    <RotateCw className="w-5 h-5" />
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
 
+                                                    {/* Split Bar (横並びの時のみ表示) */}
+                                                    {!isColLayout && (
+                                                        <div 
+                                                            className="w-1 bg-indigo-300 hover:bg-indigo-500 cursor-col-resize transition-colors flex-shrink-0 relative group print-hidden"
+                                                            onMouseDown={(e) => {
+                                                                const container = e.currentTarget.closest('.step-item');
+                                                                if (container) {
+                                                                    const containerRef = { current: container };
+                                                                    handleSplitMouseDown(index, e, containerRef);
+                                                                }
+                                                            }}
+                                                            style={{ 
+                                                                cursor: splitDragState.isDragging ? 'col-resize' : 'col-resize',
+                                                                backgroundColor: splitDragState.stepIndex === index && splitDragState.isDragging ? '#6366f1' : '#a5b4fc'
+                                                            }}
+                                                        >
+                                                            <div className="absolute inset-y-0 left-1/2 transform -translate-x-1/2 w-3 group-hover:bg-indigo-400/50"></div>
+                                                        </div>
+                                                    )}
+
                                                     {/* Text Area */}
-                                                    <div className={`flex flex-col gap-2 step-text-container ${
-                                                        isColLayout ? 'w-full' : 'w-full md:w-1/2'
-                                                    }`}>
+                                                    <div 
+                                                        className={`flex flex-col gap-2 step-text-container ${
+                                                            isColLayout ? 'w-full' : ''
+                                                        }`}
+                                                        style={!isColLayout ? { width: `${(1 - (steps[index].splitRatio || 0.5)) * 100}%` } : {}}
+                                                    >
                                                         <textarea
                                                             value={step.text}
                                                             onChange={(e) => handleTextChange(index, e.target.value)}
