@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>作業書作成支援ツール</title>
+    <title>作業書作成支援ツール (動画版)</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='8' width='48' height='48' rx='8' fill='%234f46e5'/%3E%3Cpath d='M26 22 L26 42 L44 32 Z' fill='%23ffffff'/%3E%3C/svg%3E">
@@ -43,14 +43,15 @@
                 padding: 0 !important;
             }
 
-            /* 右側コンテンツの幅リセット */
-            .right-content {
+            .a4-preview {
                 width: 100% !important;
                 max-width: none !important;
+                box-shadow: none !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                box-shadow: none !important;
-                background: transparent !important;
+                background: white !important;
+                min-height: 0 !important;
+                background-image: none !important;
             }
             
             .step-item {
@@ -260,9 +261,12 @@
                     if (type === 'move') {
                          ann.x = initialAnn.x + deltaX;
                          ann.y = initialAnn.y + deltaY;
-                    } else if (type === 'resize-circle') {
-                        const scaleChange = deltaX / 10; 
-                        ann.size = Math.max(0.2, initialAnn.size + scaleChange);
+                    } else if (type === 'resize-circle-w') {
+                        // 横幅変更 (rx)
+                        ann.rx = Math.max(1, initialAnn.rx + (deltaX / 2)); 
+                    } else if (type === 'resize-circle-h') {
+                        // 縦幅変更 (ry)
+                        ann.ry = Math.max(1, initialAnn.ry + (deltaY / 2));
                     } else if (type === 'arrow-start' || type === 'arrow-end') {
                         const rad = initialAnn.rotation * Math.PI / 180;
                         const halfLen = initialAnn.length / 2;
@@ -328,12 +332,20 @@
                 const rect = container.getBoundingClientRect();
                 const relativeX = ((x - rect.left) / rect.width) * 100;
                 const relativeY = ((y - rect.top) / rect.height) * 100;
+                
+                // 円の初期サイズ計算 (見た目上の正円)
+                const aspect = rect.width / rect.height;
+                const initialRx = 5; // 横幅の5%
+                const initialRy = 5 * aspect; // 縦幅の5% * アスペクト比
+
                 const newAnnotation = {
                     id: Date.now(),
                     type: type,
                     x: relativeX,
                     y: relativeY,
-                    size: 1.0,
+                    rx: initialRx, // 横半径
+                    ry: initialRy, // 縦半径
+                    size: 1.0, // 後方互換用(使わない)
                     rotation: 0,
                     length: 16,
                     strokeWidth: 2,
@@ -569,15 +581,24 @@
                 ...step,
                 splitRatio: step.splitRatio || 0.5,
                 imageHeight: step.imageHeight || 400,
-                annotations: (step.annotations || []).map(a => ({
-                    ...a, size: a.size || 1.0, rotation: a.rotation || 0, length: a.length || 16, strokeWidth: a.strokeWidth || 2
-                }))
+                annotations: (step.annotations || []).map(a => {
+                    // 旧データ(size)があればrx,ryに変換する簡易ロジック
+                    const baseSize = (a.size || 1.0) * 5; 
+                    return {
+                        ...a, 
+                        rx: a.rx || baseSize,
+                        ry: a.ry || baseSize,
+                        rotation: a.rotation || 0, 
+                        length: a.length || 16, 
+                        strokeWidth: a.strokeWidth || 2
+                    };
+                })
             });
 
             return (
                 <div className="h-full flex flex-col font-sans text-gray-800 bg-gray-50 overflow-hidden">
                     <header className="flex-shrink-0 flex items-center justify-between border-b bg-white px-6 py-3 shadow-sm z-50 print-hidden">
-                        <div><h1 className="text-xl font-bold flex items-center gap-2 text-indigo-600"><FileVideo className="w-6 h-6" /> 作業書作成支援ツール</h1></div>
+                        <div><h1 className="text-xl font-bold flex items-center gap-2 text-indigo-600"><FileVideo className="w-6 h-6" /> 作業書作成支援ツール (動画版)</h1></div>
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
                                 <span className="text-xs font-bold text-gray-500 ml-2">名:</span>
@@ -634,9 +655,10 @@
                         </div>
 
                         <div className="flex-1 bg-gray-200 overflow-y-auto scroll-area custom-scrollbar" ref={scrollAreaRef} onClick={() => setSelectedAnnotation(null)}>
-                            <div className="mx-auto my-8 bg-white shadow-xl p-8 max-w-4xl right-content transition-all">
-                                <div className="flex justify-between items-center mb-6 border-b pb-2 print-hidden">
-                                    <h2 className="font-semibold flex items-center gap-2 text-lg"><FileText className="w-5 h-5 text-indigo-500" /> 作成された作業項目 ({steps.length})</h2>
+                            {/* A4プレビュー枠を外し、通常のリスト表示に戻す */}
+                            <div className="w-full max-w-5xl mx-auto my-8 p-4 right-content transition-all">
+                                <div className="flex justify-between items-center mb-6 pb-2 print-hidden border-b border-gray-300">
+                                    <h2 className="font-semibold flex items-center gap-2 text-lg text-gray-700"><FileText className="w-5 h-5 text-indigo-500" /> 作成された作業項目 ({steps.length})</h2>
                                 </div>
 
                                 {steps.length === 0 ? (
@@ -646,7 +668,7 @@
                                         {steps.map((step, index) => {
                                             const isColLayout = step.layout === 'col';
                                             return (
-                                                <div key={step.id} className={`group relative flex gap-6 p-4 rounded-xl border border-gray-200 hover:border-indigo-300 transition-all bg-white step-item ${isColLayout ? 'flex-col step-col' : 'flex-col md:flex-row step-row'}`}>
+                                                <div key={step.id} className={`group relative flex gap-6 p-4 rounded-xl border border-gray-300 hover:border-indigo-300 transition-all bg-white step-item ${isColLayout ? 'flex-col step-col' : 'flex-col md:flex-row step-row'}`}>
                                                     <div className={`flex flex-col ${isColLayout ? 'w-full' : ''}`} style={{ width: !isColLayout ? `${(step.splitRatio || 0.5) * 100}%` : '100%' }}>
                                                         <div className={`flex-shrink-0 step-image-mask relative cursor-move bg-gray-50 border border-gray-200`} style={{ overflow: 'hidden', height: isColLayout ? `${step.imageHeight || 400}px` : 'auto', maxHeight: isColLayout ? 'none' : '300px' }} onMouseDown={(e) => handleImageMouseDown(index, e)}>
                                                             <div className={`relative w-full h-full flex items-center justify-center ${!isColLayout ? 'aspect-video' : ''}`} style={{overflow: 'visible'}}>
@@ -667,12 +689,12 @@
 
                                                                         return (
                                                                             <g key={ann.id} transform={`translate(${ann.x}, ${ann.y})`} className="pointer-events-auto" onClick={(e) => { e.stopPropagation(); setSelectedAnnotation({stepIndex: index, annotationId: ann.id}); }}>
-                                                                                {/* ヒットエリア(透明な太い線/円) */}
+                                                                                {/* ヒットエリア(透明な太い線/楕円) */}
                                                                                  {ann.type === 'arrow' && (
                                                                                      <line x1={p1x} y1={p1y} x2={p2x} y2={p2y} stroke="transparent" strokeWidth="20" />
                                                                                  )}
                                                                                  {ann.type === 'circle' && (
-                                                                                     <circle cx="0" cy="0" r={10 * (ann.size || 1)} stroke="transparent" strokeWidth="20" fill="none" />
+                                                                                     <ellipse cx="0" cy="0" rx={ann.rx} ry={ann.ry} stroke="transparent" strokeWidth="20" fill="none" />
                                                                                  )}
 
                                                                                 {ann.type === 'arrow' && (
@@ -680,7 +702,7 @@
                                                                                         <g>
                                                                                             <line x1={p1x} y1={p1y} x2={p2x - (2 + strokeW) * Math.cos(rot)} y2={p2y - (2 + strokeW) * Math.sin(rot)} stroke="#dc2626" strokeWidth={strokeW} strokeLinecap="round" />
                                                                                             {/* Arrow Head (Scales with stroke width) */}
-                                                                                            <path d={`M ${p2x} ${p2y} L ${p2x - (4 + strokeW)*Math.cos(rot - 0.5)} ${p2y - (4 + strokeW)*Math.sin(rot - 0.5)} L ${p2x - (4 + strokeW)*Math.cos(rot + 0.5)} ${p2y - (4 + strokeW)*Math.sin(rot + 0.5)} Z`} fill="#dc2626" />
+                                                                                            <path d={`M ${p2x} ${p2y} L ${p2x - (6 + strokeW)*Math.cos(rot - 0.5)} ${p2y - (6 + strokeW)*Math.sin(rot - 0.5)} L ${p2x - (6 + strokeW)*Math.cos(rot + 0.5)} ${p2y - (6 + strokeW)*Math.sin(rot + 0.5)} Z`} fill="#dc2626" />
                                                                                         </g>
                                                                                         {isSelected && (
                                                                                             <>
@@ -695,11 +717,12 @@
                                                                                 )}
                                                                                 {ann.type === 'circle' && (
                                                                                     <>
-                                                                                        <circle cx="0" cy="0" r={10 * (ann.size || 1)} fill="none" stroke="#dc2626" strokeWidth={strokeW} />
+                                                                                        <ellipse cx="0" cy="0" rx={ann.rx} ry={ann.ry} fill="none" stroke="#dc2626" strokeWidth={strokeW} />
                                                                                         {isSelected && (
                                                                                             <>
-                                                                                                <rect x={-10 * (ann.size || 1)} y={-10 * (ann.size || 1)} width={20 * (ann.size || 1)} height={20 * (ann.size || 1)} fill="transparent" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" className="print-hidden" />
-                                                                                                <circle cx={10 * (ann.size || 1)} cy="0" r="3" fill="#3b82f6" stroke="white" strokeWidth="1" className="cursor-ew-resize print-hidden" onMouseDown={(e) => handleHandleMouseDown(e, 'resize-circle', index, ann.id)} />
+                                                                                                <rect x={-ann.rx} y={-ann.ry} width={ann.rx * 2} height={ann.ry * 2} fill="transparent" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" className="print-hidden" />
+                                                                                                <circle cx={ann.rx} cy="0" r="3" fill="#3b82f6" stroke="white" strokeWidth="1" className="cursor-ew-resize print-hidden" onMouseDown={(e) => handleHandleMouseDown(e, 'resize-circle-w', index, ann.id)} />
+                                                                                                <circle cx="0" cy={ann.ry} r="3" fill="#3b82f6" stroke="white" strokeWidth="1" className="cursor-ns-resize print-hidden" onMouseDown={(e) => handleHandleMouseDown(e, 'resize-circle-h', index, ann.id)} />
                                                                                                 <g className="print-hidden cursor-move" onMouseDown={(e) => handleHandleMouseDown(e, 'move', index, ann.id)}>
                                                                                                     <circle cx="0" cy="0" r="5" fill="transparent" />
                                                                                                 </g>
