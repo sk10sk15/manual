@@ -132,6 +132,8 @@
         const ArrowRight = (props) => (<IconBase {...props}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></IconBase>);
         const Circle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle></IconBase>);
         const PlusCircle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></IconBase>);
+        const Type = (props) => (<IconBase {...props}><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></IconBase>);
+        const Hash = (props) => (<IconBase {...props}><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></IconBase>);
 
         // --- Main Component ---
         function App() {
@@ -263,10 +265,17 @@
                          ann.y = initialAnn.y + deltaY;
                     } else if (type === 'resize-circle-w') {
                         // 横幅変更 (rx)
-                        ann.rx = Math.max(1, initialAnn.rx + (deltaX / 2)); 
+                        ann.rx = Math.max(1, initialAnn.rx + (deltaX / 2));
                     } else if (type === 'resize-circle-h') {
                         // 縦幅変更 (ry)
                         ann.ry = Math.max(1, initialAnn.ry + (deltaY / 2));
+                    } else if (type === 'resize-text-label') {
+                        // テキストラベルのフォントサイズ変更
+                        ann.fontSize = Math.max(1, Math.min(10, initialAnn.fontSize + (deltaY / 10)));
+                    } else if (type === 'resize-number-stamp') {
+                        // 番号スタンプのサイズ変更
+                        const avgDelta = (deltaX + deltaY) / 2;
+                        ann.stampSize = Math.max(2, Math.min(15, initialAnn.stampSize + (avgDelta / 10)));
                     } else if (type === 'arrow-start' || type === 'arrow-end') {
                         const rad = initialAnn.rotation * Math.PI / 180;
                         const halfLen = initialAnn.length / 2;
@@ -332,11 +341,22 @@
                 const rect = container.getBoundingClientRect();
                 const relativeX = ((x - rect.left) / rect.width) * 100;
                 const relativeY = ((y - rect.top) / rect.height) * 100;
-                
+
                 // 円の初期サイズ計算 (見た目上の正円)
                 const aspect = rect.width / rect.height;
                 const initialRx = 5; // 横幅の5%
                 const initialRy = 5 * aspect; // 縦幅の5% * アスペクト比
+
+                // 番号スタンプの場合、既存の最大番号+1を自動設定
+                let nextNumber = 1;
+                if (type === 'number-stamp') {
+                    const existingNumbers = (steps[stepIndex].annotations || [])
+                        .filter(a => a.type === 'number-stamp')
+                        .map(a => a.number || 1);
+                    if (existingNumbers.length > 0) {
+                        nextNumber = Math.max(...existingNumbers) + 1;
+                    }
+                }
 
                 const newAnnotation = {
                     id: Date.now(),
@@ -349,6 +369,12 @@
                     rotation: 0,
                     length: 16,
                     strokeWidth: 2,
+                    // テキストラベル用
+                    text: type === 'text-label' ? 'テキスト' : undefined,
+                    fontSize: type === 'text-label' ? 3 : undefined,
+                    // 番号スタンプ用
+                    number: type === 'number-stamp' ? nextNumber : undefined,
+                    stampSize: type === 'number-stamp' ? 6 : undefined,
                 };
                 setSteps(prev => {
                     const newSteps = [...prev];
@@ -381,6 +407,35 @@
                     return next;
                 });
                 setHasUnsavedChanges(true);
+            };
+
+            const editAnnotationText = (stepIndex, annotationId) => {
+                const ann = steps[stepIndex].annotations.find(a => a.id === annotationId);
+                if (!ann) return;
+
+                if (ann.type === 'text-label') {
+                    const newText = prompt('テキストを入力してください:', ann.text || '');
+                    if (newText !== null) {
+                        setSteps(prev => {
+                            const next = [...prev];
+                            const a = next[stepIndex].annotations.find(a => a.id === annotationId);
+                            if (a) a.text = newText;
+                            return next;
+                        });
+                        setHasUnsavedChanges(true);
+                    }
+                } else if (ann.type === 'number-stamp') {
+                    const newNumber = prompt('番号を入力してください:', ann.number || 1);
+                    if (newNumber !== null && !isNaN(newNumber)) {
+                        setSteps(prev => {
+                            const next = [...prev];
+                            const a = next[stepIndex].annotations.find(a => a.id === annotationId);
+                            if (a) a.number = parseInt(newNumber);
+                            return next;
+                        });
+                        setHasUnsavedChanges(true);
+                    }
+                }
             };
 
             // 動画・キャプチャ・画像アップロード処理
@@ -583,14 +638,20 @@
                 imageHeight: step.imageHeight || 400,
                 annotations: (step.annotations || []).map(a => {
                     // 旧データ(size)があればrx,ryに変換する簡易ロジック
-                    const baseSize = (a.size || 1.0) * 5; 
+                    const baseSize = (a.size || 1.0) * 5;
                     return {
-                        ...a, 
+                        ...a,
                         rx: a.rx || baseSize,
                         ry: a.ry || baseSize,
-                        rotation: a.rotation || 0, 
-                        length: a.length || 16, 
-                        strokeWidth: a.strokeWidth || 2
+                        rotation: a.rotation || 0,
+                        length: a.length || 16,
+                        strokeWidth: a.strokeWidth || 2,
+                        // テキストラベル用のデフォルト値
+                        text: a.type === 'text-label' ? (a.text || 'テキスト') : a.text,
+                        fontSize: a.type === 'text-label' ? (a.fontSize || 3) : a.fontSize,
+                        // 番号スタンプ用のデフォルト値
+                        number: a.type === 'number-stamp' ? (a.number || 1) : a.number,
+                        stampSize: a.type === 'number-stamp' ? (a.stampSize || 6) : a.stampSize,
                     };
                 })
             });
@@ -648,7 +709,9 @@
                                     <li>または「画像を追加」から写真などの画像ファイルを追加します。</li>
                                     <li>右側に作業項目が追加されます。</li>
                                     <li>画像の下のボタンで、注釈追加や画像の編集ができます。</li>
+                                    <li>注釈は4種類：矢印、丸、テキストラベル、番号スタンプ</li>
                                     <li>注釈はドラッグで移動、選択して変形、太さ変更が可能です。</li>
+                                    <li>テキストや番号は「編」ボタンで編集できます。</li>
                                     <li>テキスト欄の右下をドラッグして高さを自由に調整できます。</li>
                                 </ul>
                             </div>
@@ -696,6 +759,18 @@
                                                                                  {ann.type === 'circle' && (
                                                                                      <ellipse cx="0" cy="0" rx={ann.rx} ry={ann.ry} stroke="transparent" strokeWidth="20" fill="none" />
                                                                                  )}
+                                                                                 {ann.type === 'text-label' && (
+                                                                                     <rect
+                                                                                         x={-(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
+                                                                                         y={-(ann.fontSize || 3) * 0.6}
+                                                                                         width={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.6}
+                                                                                         height={(ann.fontSize || 3) * 1.2}
+                                                                                         fill="transparent"
+                                                                                     />
+                                                                                 )}
+                                                                                 {ann.type === 'number-stamp' && (
+                                                                                     <circle cx="0" cy="0" r={(ann.stampSize || 6) + 2} fill="transparent" />
+                                                                                 )}
 
                                                                                 {ann.type === 'arrow' && (
                                                                                     <>
@@ -730,6 +805,95 @@
                                                                                         )}
                                                                                     </>
                                                                                 )}
+                                                                                {ann.type === 'text-label' && (
+                                                                                    <>
+                                                                                        {/* テキストラベル: 背景付きテキスト */}
+                                                                                        <g>
+                                                                                            {/* 背景測定用の非表示テキスト */}
+                                                                                            <text x="0" y="0" fontSize={ann.fontSize || 3} fontWeight="bold" fill="transparent" textAnchor="middle" dominantBaseline="middle" id={`text-${ann.id}`}>
+                                                                                                {ann.text || 'テキスト'}
+                                                                                            </text>
+                                                                                            {/* 背景矩形（おおよそのサイズ） */}
+                                                                                            <rect
+                                                                                                x={-(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
+                                                                                                y={-(ann.fontSize || 3) * 0.6}
+                                                                                                width={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.6}
+                                                                                                height={(ann.fontSize || 3) * 1.2}
+                                                                                                fill="#fef3c7"
+                                                                                                stroke="#f59e0b"
+                                                                                                strokeWidth="0.3"
+                                                                                                rx="0.5"
+                                                                                            />
+                                                                                            {/* テキスト本体 */}
+                                                                                            <text x="0" y="0" fontSize={ann.fontSize || 3} fontWeight="bold" fill="#92400e" textAnchor="middle" dominantBaseline="middle">
+                                                                                                {ann.text || 'テキスト'}
+                                                                                            </text>
+                                                                                        </g>
+                                                                                        {isSelected && (
+                                                                                            <>
+                                                                                                {/* 選択時のバウンディングボックス */}
+                                                                                                <rect
+                                                                                                    x={-(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
+                                                                                                    y={-(ann.fontSize || 3) * 0.6}
+                                                                                                    width={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.6}
+                                                                                                    height={(ann.fontSize || 3) * 1.2}
+                                                                                                    fill="transparent"
+                                                                                                    stroke="#3b82f6"
+                                                                                                    strokeWidth="0.3"
+                                                                                                    strokeDasharray="1 1"
+                                                                                                    className="print-hidden"
+                                                                                                />
+                                                                                                {/* リサイズハンドル（右下） */}
+                                                                                                <circle
+                                                                                                    cx={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
+                                                                                                    cy={(ann.fontSize || 3) * 0.6}
+                                                                                                    r="2"
+                                                                                                    fill="#3b82f6"
+                                                                                                    stroke="white"
+                                                                                                    strokeWidth="0.5"
+                                                                                                    className="cursor-nwse-resize print-hidden"
+                                                                                                    onMouseDown={(e) => handleHandleMouseDown(e, 'resize-text-label', index, ann.id)}
+                                                                                                />
+                                                                                                {/* 移動ハンドル */}
+                                                                                                <g className="print-hidden cursor-move" onMouseDown={(e) => handleHandleMouseDown(e, 'move', index, ann.id)}>
+                                                                                                    <circle cx="0" cy="0" r="5" fill="transparent" />
+                                                                                                </g>
+                                                                                            </>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
+                                                                                {ann.type === 'number-stamp' && (
+                                                                                    <>
+                                                                                        {/* 番号スタンプ: 円 + 番号 */}
+                                                                                        <g>
+                                                                                            <circle cx="0" cy="0" r={ann.stampSize || 6} fill="#ef4444" stroke="#991b1b" strokeWidth="0.5" />
+                                                                                            <text x="0" y="0" fontSize={(ann.stampSize || 6) * 0.6} fontWeight="bold" fill="white" textAnchor="middle" dominantBaseline="middle">
+                                                                                                {ann.number || 1}
+                                                                                            </text>
+                                                                                        </g>
+                                                                                        {isSelected && (
+                                                                                            <>
+                                                                                                {/* 選択時のバウンディングボックス */}
+                                                                                                <circle cx="0" cy="0" r={ann.stampSize || 6} fill="transparent" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" className="print-hidden" />
+                                                                                                {/* リサイズハンドル（右） */}
+                                                                                                <circle
+                                                                                                    cx={ann.stampSize || 6}
+                                                                                                    cy="0"
+                                                                                                    r="2"
+                                                                                                    fill="#3b82f6"
+                                                                                                    stroke="white"
+                                                                                                    strokeWidth="0.5"
+                                                                                                    className="cursor-ew-resize print-hidden"
+                                                                                                    onMouseDown={(e) => handleHandleMouseDown(e, 'resize-number-stamp', index, ann.id)}
+                                                                                                />
+                                                                                                {/* 移動ハンドル */}
+                                                                                                <g className="print-hidden cursor-move" onMouseDown={(e) => handleHandleMouseDown(e, 'move', index, ann.id)}>
+                                                                                                    <circle cx="0" cy="0" r="5" fill="transparent" />
+                                                                                                </g>
+                                                                                            </>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
                                                                             </g>
                                                                         );
                                                                     })}
@@ -747,9 +911,12 @@
                                                             <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
                                                                 <button onClick={() => setAnnotationTool(annotationTool === 'arrow' ? null : 'arrow')} className={`p-1.5 rounded ${annotationTool === 'arrow' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="矢印"><ArrowRight className="w-4 h-4" /></button>
                                                                 <button onClick={() => setAnnotationTool(annotationTool === 'circle' ? null : 'circle')} className={`p-1.5 rounded ${annotationTool === 'circle' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="丸"><Circle className="w-4 h-4" /></button>
+                                                                <button onClick={() => setAnnotationTool(annotationTool === 'text-label' ? null : 'text-label')} className={`p-1.5 rounded ${annotationTool === 'text-label' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="テキストラベル"><Type className="w-4 h-4" /></button>
+                                                                <button onClick={() => setAnnotationTool(annotationTool === 'number-stamp' ? null : 'number-stamp')} className={`p-1.5 rounded ${annotationTool === 'number-stamp' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="番号スタンプ"><Hash className="w-4 h-4" /></button>
                                                             </div>
 
                                                             <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
+                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && editAnnotationText(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation || !(steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'text-label' || steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'number-stamp')} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="テキスト/番号を編集">編</button>
                                                                 <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, 1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を太く">B+</button>
                                                                 <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, -1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を細く">B-</button>
                                                                 <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && deleteAnnotation(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-red-600 hover:bg-red-50 rounded border border-gray-200 disabled:opacity-50" title="削除"><Trash2 className="w-4 h-4" /></button>
