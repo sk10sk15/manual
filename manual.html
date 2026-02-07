@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>作業書作成支援ツール (動画版)</title>
+    <title>作業書作成支援ツール</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='8' y='8' width='48' height='48' rx='8' fill='%234f46e5'/%3E%3Cpath d='M26 22 L26 42 L44 32 Z' fill='%23ffffff'/%3E%3C/svg%3E">
@@ -25,14 +25,45 @@
             overflow: hidden; /* 全体スクロールを禁止 */
         }
 
+        /* --- A4キャンバススタイル --- */
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 0 auto 40px;
+            padding: 15mm;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 10mm;
+            right: 15mm;
+            font-size: 10pt;
+            color: #999;
+            font-family: monospace;
+        }
+
+        .page-break-indicator {
+            border-bottom: 3px dashed #f97316;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+        }
+
         /* --- 印刷用スタイル --- */
         @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
             body, html {
                 height: auto;
                 overflow: visible;
-                background: white; 
+                background: white;
             }
-            
+
             .print-hidden { display: none !important; }
             .print-block { display: block !important; }
 
@@ -43,17 +74,30 @@
                 padding: 0 !important;
             }
 
-            .a4-preview {
-                width: 100% !important;
-                max-width: none !important;
-                box-shadow: none !important;
+            .a4-page {
+                width: 210mm !important;
+                height: 297mm !important;
+                min-height: 297mm !important;
+                max-height: 297mm !important;
                 margin: 0 !important;
-                padding: 0 !important;
-                background: white !important;
-                min-height: 0 !important;
-                background-image: none !important;
+                padding: 15mm !important;
+                box-shadow: none !important;
+                page-break-after: always;
+                overflow: hidden;
             }
-            
+
+            .a4-page:last-child {
+                page-break-after: auto;
+            }
+
+            .page-number {
+                display: block !important;
+            }
+
+            .page-break-indicator {
+                display: none !important;
+            }
+
             .step-item {
                 break-inside: avoid;
                 page-break-inside: avoid;
@@ -132,6 +176,56 @@
         const ArrowRight = (props) => (<IconBase {...props}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></IconBase>);
         const Circle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle></IconBase>);
         const PlusCircle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></IconBase>);
+        const Type = (props) => (<IconBase {...props}><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></IconBase>);
+        const Hash = (props) => (<IconBase {...props}><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></IconBase>);
+        const FileBreak = (props) => (<IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13" strokeDasharray="2 2"></line></IconBase>);
+
+        // --- A4 Canvas Constants ---
+        const A4_WIDTH_MM = 210;
+        const A4_HEIGHT_MM = 297;
+        const MM_TO_PX = 3.7795275591; // 1mm = 3.78px at 96dpi
+        const A4_CONTENT_HEIGHT = (A4_HEIGHT_MM - 30) * MM_TO_PX; // 297mm - 30mm padding = 267mm
+        const STEP_MARGIN = 24; // gap between steps in px
+
+        // --- Custom Hook for Step Height Measurement ---
+        const useStepRefs = (steps, setStepHeights) => {
+            const refsMap = useRef(new Map());
+
+            useEffect(() => {
+                const observers = new Map();
+
+                steps.forEach((step) => {
+                    const element = refsMap.current.get(step.id);
+                    if (element) {
+                        const observer = new ResizeObserver((entries) => {
+                            const height = entries[0].contentRect.height;
+                            setStepHeights(prev => {
+                                if (prev[step.id] !== height) {
+                                    return { ...prev, [step.id]: height };
+                                }
+                                return prev;
+                            });
+                        });
+                        observer.observe(element);
+                        observers.set(step.id, observer);
+                    }
+                });
+
+                return () => {
+                    observers.forEach(observer => observer.disconnect());
+                };
+            }, [steps, setStepHeights]);
+
+            const setRef = (stepId) => (element) => {
+                if (element) {
+                    refsMap.current.set(stepId, element);
+                } else {
+                    refsMap.current.delete(stepId);
+                }
+            };
+
+            return setRef;
+        };
 
         // --- Main Component ---
         function App() {
@@ -139,13 +233,15 @@
             const [steps, setSteps] = useState([]);
             const [fileName, setFileName] = useState("");
             const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-            
+            const [pages, setPages] = useState([]);
+            const [stepHeights, setStepHeights] = useState({});
+
             const [dragState, setDragState] = useState({ isDragging: false, stepIndex: null, startX: 0, startY: 0, initialImgX: 0, initialImgY: 0 });
             const [splitDragState, setSplitDragState] = useState({ isDragging: false, stepIndex: null, startX: 0, startY: 0, containerWidth: 0, containerHeight: 0, initialRatio: 0.5, initialHeight: 400, type: 'row' });
-            
+
             const [annotationTool, setAnnotationTool] = useState(null);
-            const [selectedAnnotation, setSelectedAnnotation] = useState(null); 
-            const [handleDragState, setHandleDragState] = useState(null); 
+            const [selectedAnnotation, setSelectedAnnotation] = useState(null);
+            const [handleDragState, setHandleDragState] = useState(null);
 
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
@@ -154,6 +250,9 @@
             const jsonInputRef = useRef(null);
             const stepsEndRef = useRef(null);
             const scrollAreaRef = useRef(null);
+
+            // Step height measurement
+            const setStepRef = useStepRefs(steps, setStepHeights);
 
             useEffect(() => {
                 const handleBeforeUnload = (e) => {
@@ -263,10 +362,17 @@
                          ann.y = initialAnn.y + deltaY;
                     } else if (type === 'resize-circle-w') {
                         // 横幅変更 (rx)
-                        ann.rx = Math.max(1, initialAnn.rx + (deltaX / 2)); 
+                        ann.rx = Math.max(1, initialAnn.rx + (deltaX / 2));
                     } else if (type === 'resize-circle-h') {
                         // 縦幅変更 (ry)
                         ann.ry = Math.max(1, initialAnn.ry + (deltaY / 2));
+                    } else if (type === 'resize-text-label') {
+                        // テキストラベルのフォントサイズ変更
+                        ann.fontSize = Math.max(1, Math.min(10, initialAnn.fontSize + (deltaY / 10)));
+                    } else if (type === 'resize-number-stamp') {
+                        // 番号スタンプのサイズ変更
+                        const avgDelta = (deltaX + deltaY) / 2;
+                        ann.stampSize = Math.max(2, Math.min(15, initialAnn.stampSize + (avgDelta / 10)));
                     } else if (type === 'arrow-start' || type === 'arrow-end') {
                         const rad = initialAnn.rotation * Math.PI / 180;
                         const halfLen = initialAnn.length / 2;
@@ -332,11 +438,22 @@
                 const rect = container.getBoundingClientRect();
                 const relativeX = ((x - rect.left) / rect.width) * 100;
                 const relativeY = ((y - rect.top) / rect.height) * 100;
-                
+
                 // 円の初期サイズ計算 (見た目上の正円)
                 const aspect = rect.width / rect.height;
                 const initialRx = 5; // 横幅の5%
                 const initialRy = 5 * aspect; // 縦幅の5% * アスペクト比
+
+                // 番号スタンプの場合、既存の最大番号+1を自動設定
+                let nextNumber = 1;
+                if (type === 'number-stamp') {
+                    const existingNumbers = (steps[stepIndex].annotations || [])
+                        .filter(a => a.type === 'number-stamp')
+                        .map(a => a.number || 1);
+                    if (existingNumbers.length > 0) {
+                        nextNumber = Math.max(...existingNumbers) + 1;
+                    }
+                }
 
                 const newAnnotation = {
                     id: Date.now(),
@@ -349,6 +466,12 @@
                     rotation: 0,
                     length: 16,
                     strokeWidth: 2,
+                    // テキストラベル用
+                    text: type === 'text-label' ? 'テキスト' : undefined,
+                    fontSize: type === 'text-label' ? 3 : undefined,
+                    // 番号スタンプ用
+                    number: type === 'number-stamp' ? nextNumber : undefined,
+                    stampSize: type === 'number-stamp' ? 6 : undefined,
                 };
                 setSteps(prev => {
                     const newSteps = [...prev];
@@ -383,6 +506,35 @@
                 setHasUnsavedChanges(true);
             };
 
+            const editAnnotationText = (stepIndex, annotationId) => {
+                const ann = steps[stepIndex].annotations.find(a => a.id === annotationId);
+                if (!ann) return;
+
+                if (ann.type === 'text-label') {
+                    const newText = prompt('テキストを入力してください:', ann.text || '');
+                    if (newText !== null) {
+                        setSteps(prev => {
+                            const next = [...prev];
+                            const a = next[stepIndex].annotations.find(a => a.id === annotationId);
+                            if (a) a.text = newText;
+                            return next;
+                        });
+                        setHasUnsavedChanges(true);
+                    }
+                } else if (ann.type === 'number-stamp') {
+                    const newNumber = prompt('番号を入力してください:', ann.number || 1);
+                    if (newNumber !== null && !isNaN(newNumber)) {
+                        setSteps(prev => {
+                            const next = [...prev];
+                            const a = next[stepIndex].annotations.find(a => a.id === annotationId);
+                            if (a) a.number = parseInt(newNumber);
+                            return next;
+                        });
+                        setHasUnsavedChanges(true);
+                    }
+                }
+            };
+
             // 動画・キャプチャ・画像アップロード処理
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
@@ -408,7 +560,7 @@
                             originalImage: ev.target.result,
                             image: ev.target.result,
                             text: ``,
-                            scale: 1, x: 0, y: 0, layout: 'row', splitRatio: 0.5, imageHeight: 400, annotations: []
+                            scale: 1, x: 0, y: 0, layout: 'row', splitRatio: 0.5, imageHeight: 400, annotations: [], pageBreakAfter: false
                         });
                         loadedCount++;
                         if (loadedCount === imageFiles.length) {
@@ -440,7 +592,7 @@
                         originalImage: dataUrl,
                         image: dataUrl,
                         text: ``,
-                        scale: 1, x: 0, y: 0, layout: 'row', splitRatio: 0.5, imageHeight: 400, annotations: []
+                        scale: 1, x: 0, y: 0, layout: 'row', splitRatio: 0.5, imageHeight: 400, annotations: [], pageBreakAfter: false
                     };
                     setSteps([...steps, newStep]);
                     setHasUnsavedChanges(true);
@@ -492,6 +644,15 @@
                 setHasUnsavedChanges(true);
             };
 
+            const togglePageBreak = (index) => {
+                setSteps(prev => {
+                    const next = [...prev];
+                    next[index].pageBreakAfter = !next[index].pageBreakAfter;
+                    return next;
+                });
+                setHasUnsavedChanges(true);
+            };
+
             const rotateImage = (index) => {
                 const step = steps[index];
                 const img = new Image();
@@ -531,12 +692,56 @@
             const resetImage = (index) => {
                 setSteps(prev => {
                     const next = [...prev];
-                    if(next[index].originalImage) next[index].image = next[index].originalImage; 
+                    if(next[index].originalImage) next[index].image = next[index].originalImage;
                     next[index].scale = 1; next[index].x = 0; next[index].y = 0;
                     return next;
                 });
                 setHasUnsavedChanges(true);
             };
+
+            // --- ページ配置計算 ---
+            const calculatePageLayout = (steps, stepHeights) => {
+                if (steps.length === 0) return [];
+
+                const pages = [];
+                let currentPage = { pageNumber: 1, steps: [], accumulatedHeight: 0 };
+
+                steps.forEach((step, index) => {
+                    const stepHeight = stepHeights[step.id] || 400;
+
+                    // 強制改ページチェック（前のステップで改ページが設定されている場合）
+                    if (index > 0 && steps[index - 1].pageBreakAfter && currentPage.steps.length > 0) {
+                        pages.push(currentPage);
+                        currentPage = { pageNumber: pages.length + 1, steps: [], accumulatedHeight: 0 };
+                    }
+
+                    // はみ出し判定
+                    const nextHeight = currentPage.accumulatedHeight + stepHeight + (currentPage.steps.length > 0 ? STEP_MARGIN : 0);
+
+                    if (nextHeight > A4_CONTENT_HEIGHT && currentPage.steps.length > 0) {
+                        // 現在のページを確定し、新しいページを開始
+                        pages.push(currentPage);
+                        currentPage = { pageNumber: pages.length + 1, steps: [step], accumulatedHeight: stepHeight };
+                    } else {
+                        // 現在のページに追加
+                        currentPage.steps.push(step);
+                        currentPage.accumulatedHeight = nextHeight;
+                    }
+                });
+
+                // 最後のページを追加
+                if (currentPage.steps.length > 0) {
+                    pages.push(currentPage);
+                }
+
+                return pages;
+            };
+
+            // ページレイアウトの自動再計算
+            useEffect(() => {
+                const newPages = calculatePageLayout(steps, stepHeights);
+                setPages(newPages);
+            }, [steps, stepHeights]);
 
             // データ保存・読込
             const saveData = () => {
@@ -581,16 +786,23 @@
                 ...step,
                 splitRatio: step.splitRatio || 0.5,
                 imageHeight: step.imageHeight || 400,
+                pageBreakAfter: step.pageBreakAfter || false,
                 annotations: (step.annotations || []).map(a => {
                     // 旧データ(size)があればrx,ryに変換する簡易ロジック
-                    const baseSize = (a.size || 1.0) * 5; 
+                    const baseSize = (a.size || 1.0) * 5;
                     return {
-                        ...a, 
+                        ...a,
                         rx: a.rx || baseSize,
                         ry: a.ry || baseSize,
-                        rotation: a.rotation || 0, 
-                        length: a.length || 16, 
-                        strokeWidth: a.strokeWidth || 2
+                        rotation: a.rotation || 0,
+                        length: a.length || 16,
+                        strokeWidth: a.strokeWidth || 2,
+                        // テキストラベル用のデフォルト値
+                        text: a.type === 'text-label' ? (a.text || 'テキスト') : a.text,
+                        fontSize: a.type === 'text-label' ? (a.fontSize || 3) : a.fontSize,
+                        // 番号スタンプ用のデフォルト値
+                        number: a.type === 'number-stamp' ? (a.number || 1) : a.number,
+                        stampSize: a.type === 'number-stamp' ? (a.stampSize || 6) : a.stampSize,
                     };
                 })
             });
@@ -598,7 +810,7 @@
             return (
                 <div className="h-full flex flex-col font-sans text-gray-800 bg-gray-50 overflow-hidden">
                     <header className="flex-shrink-0 flex items-center justify-between border-b bg-white px-6 py-3 shadow-sm z-50 print-hidden">
-                        <div><h1 className="text-xl font-bold flex items-center gap-2 text-indigo-600"><FileVideo className="w-6 h-6" /> 作業書作成支援ツール (動画版)</h1></div>
+                        <div><h1 className="text-xl font-bold flex items-center gap-2 text-indigo-600"><FileVideo className="w-6 h-6" /> 作業書作成支援ツール</h1></div>
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
                                 <span className="text-xs font-bold text-gray-500 ml-2">名:</span>
@@ -646,35 +858,61 @@
                                 <ul className="list-decimal list-inside space-y-1 text-xs opacity-80">
                                     <li>動画を読み込み、再生位置で「キャプチャ」ボタンを押します。</li>
                                     <li>または「画像を追加」から写真などの画像ファイルを追加します。</li>
-                                    <li>右側に作業項目が追加されます。</li>
+                                    <li>右側に作業項目がA4サイズのページに追加されます。</li>
                                     <li>画像の下のボタンで、注釈追加や画像の編集ができます。</li>
+                                    <li>注釈は4種類：矢印、丸、テキストラベル、番号スタンプ</li>
                                     <li>注釈はドラッグで移動、選択して変形、太さ変更が可能です。</li>
+                                    <li>テキストや番号は「編」ボタンで編集できます。</li>
                                     <li>テキスト欄の右下をドラッグして高さを自由に調整できます。</li>
+                                    <li>改ページボタンでStep後の強制改ページを設定できます。</li>
+                                    <li>印刷時は「余白：なし」に設定するとA4にピッタリ印刷されます。</li>
                                 </ul>
                             </div>
                         </div>
 
                         <div className="flex-1 bg-gray-200 overflow-y-auto scroll-area custom-scrollbar" ref={scrollAreaRef} onClick={() => setSelectedAnnotation(null)}>
-                            {/* A4プレビュー枠を外し、通常のリスト表示に戻す */}
-                            <div className="w-full max-w-5xl mx-auto my-8 p-4 right-content transition-all">
+                            <div className="w-full mx-auto my-8 p-4 right-content transition-all">
                                 <div className="flex justify-between items-center mb-6 pb-2 print-hidden border-b border-gray-300">
-                                    <h2 className="font-semibold flex items-center gap-2 text-lg text-gray-700"><FileText className="w-5 h-5 text-indigo-500" /> 作成された作業項目 ({steps.length})</h2>
+                                    <h2 className="font-semibold flex items-center gap-2 text-lg text-gray-700"><FileText className="w-5 h-5 text-indigo-500" /> 作成された作業項目 ({steps.length}) - {pages.length}ページ</h2>
                                 </div>
 
                                 {steps.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-64 text-gray-400 print-hidden"><p>ここに作業項目が追加されます</p></div>
                                 ) : (
-                                    <div className="space-y-6 print:space-y-0 print:block">
-                                        {steps.map((step, index) => {
-                                            const isColLayout = step.layout === 'col';
-                                            return (
-                                                <div key={step.id} className={`group relative flex gap-6 p-4 rounded-xl border border-gray-300 hover:border-indigo-300 transition-all bg-white step-item ${isColLayout ? 'flex-col step-col' : 'flex-col md:flex-row step-row'}`}>
+                                    <>
+                                        {pages.map((page) => (
+                                            <div key={page.pageNumber} className="a4-page">
+                                                <div className="space-y-6">
+                                                    {page.steps.map((step) => {
+                                                        const index = steps.indexOf(step);
+                                                        const isColLayout = step.layout === 'col';
+                                                        const isLastInPage = page.steps[page.steps.length - 1] === step;
+                                                        return (
+                                                            <div
+                                                                key={step.id}
+                                                                ref={setStepRef(step.id)}
+                                                                className={`group relative flex gap-6 p-4 rounded-xl border border-gray-300 hover:border-indigo-300 transition-all bg-white step-item ${isColLayout ? 'flex-col step-col' : 'flex-col md:flex-row step-row'} ${step.pageBreakAfter && !isLastInPage ? 'page-break-indicator' : ''}`}
+                                                            >
                                                     <div className={`flex flex-col ${isColLayout ? 'w-full' : ''}`} style={{ width: !isColLayout ? `${(step.splitRatio || 0.5) * 100}%` : '100%' }}>
                                                         <div className={`flex-shrink-0 step-image-mask relative cursor-move bg-gray-50 border border-gray-200`} style={{ overflow: 'hidden', height: isColLayout ? `${step.imageHeight || 400}px` : 'auto', maxHeight: isColLayout ? 'none' : '300px' }} onMouseDown={(e) => handleImageMouseDown(index, e)}>
                                                             <div className={`relative w-full h-full flex items-center justify-center ${!isColLayout ? 'aspect-video' : ''}`} style={{overflow: 'visible'}}>
                                                                 <img src={step.image} className="max-w-none transition-transform duration-75 ease-out select-none pointer-events-none" style={{ transform: `translate(${step.x || 0}px, ${step.y || 0}px) scale(${step.scale || 1})`, height: isColLayout ? '100%' : 'auto', width: isColLayout ? 'auto' : '100%' }} draggable="false" />
                                                                 <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded font-mono z-10 pointer-events-none shadow-sm">Step {index + 1}</div>
                                                                 <svg className="absolute w-full h-full pointer-events-none z-20" style={{ pointerEvents: annotationTool || selectedAnnotation ? 'auto' : 'none', overflow: 'hidden', top: 0, left: 0 }} viewBox="0 0 100 100" preserveAspectRatio="none">
+                                                                    <defs>
+                                                                        <filter id="text-glow" x="-50%" y="-50%" width="200%" height="200%">
+                                                                            <feGaussianBlur in="SourceAlpha" stdDeviation="0.5" result="blur"/>
+                                                                            <feOffset in="blur" dx="0" dy="0" result="offsetBlur"/>
+                                                                            <feFlood floodColor="black" floodOpacity="1" result="color"/>
+                                                                            <feComposite in="color" in2="offsetBlur" operator="in" result="shadow"/>
+                                                                            <feMerge>
+                                                                                <feMergeNode in="shadow"/>
+                                                                                <feMergeNode in="shadow"/>
+                                                                                <feMergeNode in="shadow"/>
+                                                                                <feMergeNode in="SourceGraphic"/>
+                                                                            </feMerge>
+                                                                        </filter>
+                                                                    </defs>
                                                                     {(step.annotations || []).map((ann) => {
                                                                         const isSelected = selectedAnnotation && selectedAnnotation.stepIndex === index && selectedAnnotation.annotationId === ann.id;
                                                                         const strokeW = ann.strokeWidth || 2;
@@ -695,6 +933,12 @@
                                                                                  )}
                                                                                  {ann.type === 'circle' && (
                                                                                      <ellipse cx="0" cy="0" rx={ann.rx} ry={ann.ry} stroke="transparent" strokeWidth="20" fill="none" />
+                                                                                 )}
+                                                                                 {ann.type === 'text-label' && (
+                                                                                     <circle cx="0" cy="0" r={(ann.fontSize || 3) * 1.5} fill="transparent" />
+                                                                                 )}
+                                                                                 {ann.type === 'number-stamp' && (
+                                                                                     <circle cx="0" cy="0" r={(ann.stampSize || 6) + 2} fill="transparent" />
                                                                                  )}
 
                                                                                 {ann.type === 'arrow' && (
@@ -730,6 +974,93 @@
                                                                                         )}
                                                                                     </>
                                                                                 )}
+                                                                                {ann.type === 'text-label' && (
+                                                                                    <>
+                                                                                        {/* テキストラベル: 黒ブラー付き白テキスト */}
+                                                                                        <g>
+                                                                                            {/* テキスト本体（白、黒ブラー効果） */}
+                                                                                            <text
+                                                                                                x="0"
+                                                                                                y="0"
+                                                                                                fontSize={ann.fontSize || 3}
+                                                                                                fontWeight="bold"
+                                                                                                fill="white"
+                                                                                                textAnchor="middle"
+                                                                                                dominantBaseline="middle"
+                                                                                                filter="url(#text-glow)"
+                                                                                            >
+                                                                                                {ann.text || 'テキスト'}
+                                                                                            </text>
+                                                                                        </g>
+                                                                                        {isSelected && (
+                                                                                            <>
+                                                                                                {/* 選択時のサークル */}
+                                                                                                <circle
+                                                                                                    cx="0"
+                                                                                                    cy="0"
+                                                                                                    r={(ann.fontSize || 3) * 1.5}
+                                                                                                    fill="transparent"
+                                                                                                    stroke="#3b82f6"
+                                                                                                    strokeWidth="0.3"
+                                                                                                    strokeDasharray="1 1"
+                                                                                                    className="print-hidden"
+                                                                                                />
+                                                                                                {/* リサイズハンドル（下） */}
+                                                                                                <circle
+                                                                                                    cx="0"
+                                                                                                    cy={(ann.fontSize || 3) * 1.5}
+                                                                                                    r="2"
+                                                                                                    fill="#3b82f6"
+                                                                                                    stroke="white"
+                                                                                                    strokeWidth="0.5"
+                                                                                                    className="cursor-ns-resize print-hidden"
+                                                                                                    onMouseDown={(e) => handleHandleMouseDown(e, 'resize-text-label', index, ann.id)}
+                                                                                                />
+                                                                                                {/* 移動ハンドル（中央） */}
+                                                                                                <circle
+                                                                                                    cx="0"
+                                                                                                    cy="0"
+                                                                                                    r={(ann.fontSize || 3) * 1.5}
+                                                                                                    fill="transparent"
+                                                                                                    className="print-hidden cursor-move"
+                                                                                                    onMouseDown={(e) => handleHandleMouseDown(e, 'move', index, ann.id)}
+                                                                                                />
+                                                                                            </>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
+                                                                                {ann.type === 'number-stamp' && (
+                                                                                    <>
+                                                                                        {/* 番号スタンプ: 円 + 番号 */}
+                                                                                        <g>
+                                                                                            <circle cx="0" cy="0" r={ann.stampSize || 6} fill="#ef4444" stroke="#991b1b" strokeWidth="0.5" />
+                                                                                            <text x="0" y="0" fontSize={(ann.stampSize || 6) * 0.6} fontWeight="bold" fill="white" textAnchor="middle" dominantBaseline="middle">
+                                                                                                {ann.number || 1}
+                                                                                            </text>
+                                                                                        </g>
+                                                                                        {isSelected && (
+                                                                                            <>
+                                                                                                {/* 選択時のバウンディングボックス */}
+                                                                                                <circle cx="0" cy="0" r={ann.stampSize || 6} fill="transparent" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="2 2" className="print-hidden" />
+                                                                                                {/* リサイズハンドル（右） */}
+                                                                                                <circle
+                                                                                                    cx={ann.stampSize || 6}
+                                                                                                    cy="0"
+                                                                                                    r="2"
+                                                                                                    fill="#3b82f6"
+                                                                                                    stroke="white"
+                                                                                                    strokeWidth="0.5"
+                                                                                                    className="cursor-ew-resize print-hidden"
+                                                                                                    onMouseDown={(e) => handleHandleMouseDown(e, 'resize-number-stamp', index, ann.id)}
+                                                                                                />
+                                                                                                {/* 移動ハンドル */}
+                                                                                                <g className="print-hidden cursor-move" onMouseDown={(e) => handleHandleMouseDown(e, 'move', index, ann.id)}>
+                                                                                                    <circle cx="0" cy="0" r="5" fill="transparent" />
+                                                                                                </g>
+                                                                                            </>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
                                                                             </g>
                                                                         );
                                                                     })}
@@ -747,9 +1078,12 @@
                                                             <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
                                                                 <button onClick={() => setAnnotationTool(annotationTool === 'arrow' ? null : 'arrow')} className={`p-1.5 rounded ${annotationTool === 'arrow' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="矢印"><ArrowRight className="w-4 h-4" /></button>
                                                                 <button onClick={() => setAnnotationTool(annotationTool === 'circle' ? null : 'circle')} className={`p-1.5 rounded ${annotationTool === 'circle' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="丸"><Circle className="w-4 h-4" /></button>
+                                                                <button onClick={() => setAnnotationTool(annotationTool === 'text-label' ? null : 'text-label')} className={`p-1.5 rounded ${annotationTool === 'text-label' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="テキストラベル"><Type className="w-4 h-4" /></button>
+                                                                <button onClick={() => setAnnotationTool(annotationTool === 'number-stamp' ? null : 'number-stamp')} className={`p-1.5 rounded ${annotationTool === 'number-stamp' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="番号スタンプ"><Hash className="w-4 h-4" /></button>
                                                             </div>
 
                                                             <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
+                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && editAnnotationText(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation || !(steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'text-label' || steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'number-stamp')} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="テキスト/番号を編集">編</button>
                                                                 <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, 1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を太く">B+</button>
                                                                 <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, -1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を細く">B-</button>
                                                                 <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && deleteAnnotation(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-red-600 hover:bg-red-50 rounded border border-gray-200 disabled:opacity-50" title="削除"><Trash2 className="w-4 h-4" /></button>
@@ -773,6 +1107,7 @@
                                                     </div>
 
                                                     <div className="absolute -top-3 -right-3 flex gap-1 print-hidden z-40">
+                                                        <button onClick={() => togglePageBreak(index)} className={`border shadow-sm p-1.5 rounded-md transition-colors mr-2 ${step.pageBreakAfter ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-500 hover:text-orange-500 hover:bg-orange-50"}`} title={step.pageBreakAfter ? "改ページ解除" : "強制改ページ"}><FileBreak className="w-4 h-4" /></button>
                                                         <button onClick={() => toggleLayout(index)} className={`bg-white border shadow-sm p-1.5 rounded-md transition-colors mr-2 ${isColLayout ? "text-indigo-600 border-indigo-200 bg-indigo-50" : "text-gray-500 hover:text-indigo-600"}`} title={isColLayout ? "横並びに戻す" : "画像を大きく表示（縦並び）"}>{isColLayout ? <LayoutRow className="w-4 h-4" /> : <LayoutCol className="w-4 h-4" />}</button>
                                                         <button onClick={() => moveStep(index, -1)} disabled={index === 0} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="上へ移動"><ArrowUp className="w-4 h-4" /></button>
                                                         <button onClick={() => moveStep(index, 1)} disabled={index === steps.length - 1} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="下へ移動"><ArrowDown className="w-4 h-4" /></button>
@@ -781,11 +1116,15 @@
                                                 </div>
                                             );
                                         })}
-                                        <div ref={stepsEndRef} />
                                     </div>
-                                )}
-                            </div>
-                        </div>
+                                    <div className="page-number print-block">Page {page.pageNumber} / {pages.length}</div>
+                                </div>
+                            ))}
+                            <div ref={stepsEndRef} />
+                        </>
+                    )}
+                </div>
+            </div>
                     </div>
                 </div>
             );
