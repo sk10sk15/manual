@@ -738,6 +738,20 @@
                                                                 <img src={step.image} className="max-w-none transition-transform duration-75 ease-out select-none pointer-events-none" style={{ transform: `translate(${step.x || 0}px, ${step.y || 0}px) scale(${step.scale || 1})`, height: isColLayout ? '100%' : 'auto', width: isColLayout ? 'auto' : '100%' }} draggable="false" />
                                                                 <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded font-mono z-10 pointer-events-none shadow-sm">Step {index + 1}</div>
                                                                 <svg className="absolute w-full h-full pointer-events-none z-20" style={{ pointerEvents: annotationTool || selectedAnnotation ? 'auto' : 'none', overflow: 'hidden', top: 0, left: 0 }} viewBox="0 0 100 100" preserveAspectRatio="none">
+                                                                    <defs>
+                                                                        <filter id="text-glow" x="-50%" y="-50%" width="200%" height="200%">
+                                                                            <feGaussianBlur in="SourceAlpha" stdDeviation="0.5" result="blur"/>
+                                                                            <feOffset in="blur" dx="0" dy="0" result="offsetBlur"/>
+                                                                            <feFlood floodColor="black" floodOpacity="1" result="color"/>
+                                                                            <feComposite in="color" in2="offsetBlur" operator="in" result="shadow"/>
+                                                                            <feMerge>
+                                                                                <feMergeNode in="shadow"/>
+                                                                                <feMergeNode in="shadow"/>
+                                                                                <feMergeNode in="shadow"/>
+                                                                                <feMergeNode in="SourceGraphic"/>
+                                                                            </feMerge>
+                                                                        </filter>
+                                                                    </defs>
                                                                     {(step.annotations || []).map((ann) => {
                                                                         const isSelected = selectedAnnotation && selectedAnnotation.stepIndex === index && selectedAnnotation.annotationId === ann.id;
                                                                         const strokeW = ann.strokeWidth || 2;
@@ -760,13 +774,7 @@
                                                                                      <ellipse cx="0" cy="0" rx={ann.rx} ry={ann.ry} stroke="transparent" strokeWidth="20" fill="none" />
                                                                                  )}
                                                                                  {ann.type === 'text-label' && (
-                                                                                     <rect
-                                                                                         x={-(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
-                                                                                         y={-(ann.fontSize || 3) * 0.6}
-                                                                                         width={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.6}
-                                                                                         height={(ann.fontSize || 3) * 1.2}
-                                                                                         fill="transparent"
-                                                                                     />
+                                                                                     <circle cx="0" cy="0" r={(ann.fontSize || 3) * 1.5} fill="transparent" />
                                                                                  )}
                                                                                  {ann.type === 'number-stamp' && (
                                                                                      <circle cx="0" cy="0" r={(ann.stampSize || 6) + 2} fill="transparent" />
@@ -807,57 +815,55 @@
                                                                                 )}
                                                                                 {ann.type === 'text-label' && (
                                                                                     <>
-                                                                                        {/* テキストラベル: 背景付きテキスト */}
+                                                                                        {/* テキストラベル: 黒ブラー付き白テキスト */}
                                                                                         <g>
-                                                                                            {/* 背景測定用の非表示テキスト */}
-                                                                                            <text x="0" y="0" fontSize={ann.fontSize || 3} fontWeight="bold" fill="transparent" textAnchor="middle" dominantBaseline="middle" id={`text-${ann.id}`}>
-                                                                                                {ann.text || 'テキスト'}
-                                                                                            </text>
-                                                                                            {/* 背景矩形（おおよそのサイズ） */}
-                                                                                            <rect
-                                                                                                x={-(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
-                                                                                                y={-(ann.fontSize || 3) * 0.6}
-                                                                                                width={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.6}
-                                                                                                height={(ann.fontSize || 3) * 1.2}
-                                                                                                fill="#fef3c7"
-                                                                                                stroke="#f59e0b"
-                                                                                                strokeWidth="0.3"
-                                                                                                rx="0.5"
-                                                                                            />
-                                                                                            {/* テキスト本体 */}
-                                                                                            <text x="0" y="0" fontSize={ann.fontSize || 3} fontWeight="bold" fill="#92400e" textAnchor="middle" dominantBaseline="middle">
+                                                                                            {/* テキスト本体（白、黒ブラー効果） */}
+                                                                                            <text
+                                                                                                x="0"
+                                                                                                y="0"
+                                                                                                fontSize={ann.fontSize || 3}
+                                                                                                fontWeight="bold"
+                                                                                                fill="white"
+                                                                                                textAnchor="middle"
+                                                                                                dominantBaseline="middle"
+                                                                                                filter="url(#text-glow)"
+                                                                                            >
                                                                                                 {ann.text || 'テキスト'}
                                                                                             </text>
                                                                                         </g>
                                                                                         {isSelected && (
                                                                                             <>
-                                                                                                {/* 選択時のバウンディングボックス */}
-                                                                                                <rect
-                                                                                                    x={-(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
-                                                                                                    y={-(ann.fontSize || 3) * 0.6}
-                                                                                                    width={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.6}
-                                                                                                    height={(ann.fontSize || 3) * 1.2}
+                                                                                                {/* 選択時のサークル */}
+                                                                                                <circle
+                                                                                                    cx="0"
+                                                                                                    cy="0"
+                                                                                                    r={(ann.fontSize || 3) * 1.5}
                                                                                                     fill="transparent"
                                                                                                     stroke="#3b82f6"
                                                                                                     strokeWidth="0.3"
                                                                                                     strokeDasharray="1 1"
                                                                                                     className="print-hidden"
                                                                                                 />
-                                                                                                {/* リサイズハンドル（右下） */}
+                                                                                                {/* リサイズハンドル（下） */}
                                                                                                 <circle
-                                                                                                    cx={(ann.text || 'テキスト').length * (ann.fontSize || 3) * 0.3}
-                                                                                                    cy={(ann.fontSize || 3) * 0.6}
+                                                                                                    cx="0"
+                                                                                                    cy={(ann.fontSize || 3) * 1.5}
                                                                                                     r="2"
                                                                                                     fill="#3b82f6"
                                                                                                     stroke="white"
                                                                                                     strokeWidth="0.5"
-                                                                                                    className="cursor-nwse-resize print-hidden"
+                                                                                                    className="cursor-ns-resize print-hidden"
                                                                                                     onMouseDown={(e) => handleHandleMouseDown(e, 'resize-text-label', index, ann.id)}
                                                                                                 />
-                                                                                                {/* 移動ハンドル */}
-                                                                                                <g className="print-hidden cursor-move" onMouseDown={(e) => handleHandleMouseDown(e, 'move', index, ann.id)}>
-                                                                                                    <circle cx="0" cy="0" r="5" fill="transparent" />
-                                                                                                </g>
+                                                                                                {/* 移動ハンドル（中央） */}
+                                                                                                <circle
+                                                                                                    cx="0"
+                                                                                                    cy="0"
+                                                                                                    r={(ann.fontSize || 3) * 1.5}
+                                                                                                    fill="transparent"
+                                                                                                    className="print-hidden cursor-move"
+                                                                                                    onMouseDown={(e) => handleHandleMouseDown(e, 'move', index, ann.id)}
+                                                                                                />
                                                                                             </>
                                                                                         )}
                                                                                     </>
