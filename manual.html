@@ -56,7 +56,7 @@
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 0;
+                margin: 15mm; /* デフォルト余白 */
             }
             body, html {
                 height: auto;
@@ -74,16 +74,18 @@
                 padding: 0 !important;
             }
 
+            /* 印刷時はa4-pageの固定高さと強制改ページを解除 */
             .a4-page {
-                width: 210mm !important;
-                height: 297mm !important;
-                min-height: 297mm !important;
-                max-height: 297mm !important;
+                width: 100% !important;
+                height: auto !important; /* 固定高さを解除 */
+                min-height: 0 !important;
+                max-height: none !important;
                 margin: 0 !important;
-                padding: 15mm !important;
+                padding: 0 !important; /* パディングは@pageのmarginで確保 */
                 box-shadow: none !important;
-                page-break-after: always;
-                overflow: hidden;
+                page-break-after: auto !important; /* 強制改ページを解除 */
+                overflow: visible !important;
+                break-inside: auto; /* ページ内での分割を許可 */
             }
 
             .a4-page:last-child {
@@ -91,13 +93,14 @@
             }
 
             .page-number {
-                display: block !important;
+                display: none !important; /* ブラウザの自動ページ番号を使用 */
             }
 
             .page-break-indicator {
                 display: none !important;
             }
 
+            /* ステップは途中で分割しない */
             .step-item {
                 break-inside: avoid;
                 page-break-inside: avoid;
@@ -110,14 +113,14 @@
             }
 
             .step-image-mask {
-                overflow: hidden !important; 
+                overflow: hidden !important;
             }
             .step-toolbar {
                 display: none !important;
             }
 
-            textarea { 
-                border: none !important; 
+            textarea {
+                border: none !important;
                 resize: none !important;
                 padding: 0 !important;
                 overflow: visible !important;
@@ -125,7 +128,7 @@
             textarea::-webkit-resizer {
                 display: none !important;
             }
-            
+
             .lg\:col-span-8 {
                 width: 100% !important;
                 grid-column: span 12 / span 12 !important;
