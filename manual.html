@@ -76,14 +76,14 @@
 
             .a4-page {
                 width: 210mm !important;
-                height: 297mm !important;
-                min-height: 297mm !important;
-                max-height: 297mm !important;
+                height: auto !important;
                 margin: 0 !important;
-                padding: 15mm !important;
+                padding: 12mm 15mm !important;
                 box-shadow: none !important;
                 page-break-after: always;
-                overflow: hidden;
+                overflow: visible;
+                display: flex;
+                flex-direction: column;
             }
 
             .a4-page:last-child {
@@ -102,28 +102,52 @@
                 break-inside: avoid;
                 page-break-inside: avoid;
                 border: 1px solid #ddd !important;
-                margin-bottom: 15px !important;
-                padding: 10px !important;
-                height: auto;
+                margin-bottom: 10px !important;
+                padding: 8px !important;
+                height: auto !important;
                 display: flex !important;
-                page-break-after: auto;
+                flex-direction: row !important;
+                gap: 8px !important;
+            }
+
+            .step-item:last-child {
+                margin-bottom: 0 !important;
             }
 
             .step-image-mask {
-                overflow: hidden !important; 
-            }
-            .step-toolbar {
-                display: none !important;
+                overflow: hidden !important;
+                max-height: 180mm !important;
+                flex: 0 0 auto !important;
+                max-width: 60% !important;
+                min-width: 30% !important;
             }
 
-            textarea { 
-                border: none !important; 
+            .step-image-mask img {
+                max-width: 100% !important;
+                max-height: 180mm !important;
+                height: auto !important;
+                width: auto !important;
+                object-fit: contain !important;
+            }
+
+            textarea {
+                border: none !important;
                 resize: none !important;
-                padding: 0 !important;
+                padding: 5px !important;
                 overflow: visible !important;
+                height: auto !important;
+                min-height: 0 !important;
+                flex: 1 !important;
             }
             textarea::-webkit-resizer {
                 display: none !important;
+            }
+
+            .step-text-container {
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
             }
             
             .lg\:col-span-8 {
@@ -171,8 +195,6 @@
         const ZoomIn = (props) => (<IconBase {...props}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></IconBase>);
         const ZoomOut = (props) => (<IconBase {...props}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></IconBase>);
         const RefreshCcw = (props) => (<IconBase {...props}><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></IconBase>);
-        const LayoutRow = (props) => (<IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></IconBase>);
-        const LayoutCol = (props) => (<IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></IconBase>);
         const ArrowRight = (props) => (<IconBase {...props}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></IconBase>);
         const Circle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle></IconBase>);
         const PlusCircle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></IconBase>);
@@ -184,8 +206,8 @@
         const A4_WIDTH_MM = 210;
         const A4_HEIGHT_MM = 297;
         const MM_TO_PX = 3.7795275591; // 1mm = 3.78px at 96dpi
-        const A4_CONTENT_HEIGHT = (A4_HEIGHT_MM - 30) * MM_TO_PX; // 297mm - 30mm padding = 267mm
-        const STEP_MARGIN = 24; // gap between steps in px
+        const A4_CONTENT_HEIGHT = (A4_HEIGHT_MM - 34) * MM_TO_PX; // 297mm - 24mm padding - 10mm page number = 263mm
+        const STEP_MARGIN = 10; // gap between steps in px (matches print margin)
 
         // --- Custom Hook for Step Height Measurement ---
         const useStepRefs = (steps, setStepHeights) => {
@@ -242,6 +264,7 @@
             const [annotationTool, setAnnotationTool] = useState(null);
             const [selectedAnnotation, setSelectedAnnotation] = useState(null);
             const [handleDragState, setHandleDragState] = useState(null);
+            const [selectedStepIndex, setSelectedStepIndex] = useState(null);
 
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
@@ -564,11 +587,15 @@
                         });
                         loadedCount++;
                         if (loadedCount === imageFiles.length) {
-                            setSteps(prev => [...prev, ...newSteps]);
+                            setSteps(prev => {
+                                const updated = [...prev, ...newSteps];
+                                setSelectedStepIndex(updated.length - 1);
+                                return updated;
+                            });
                             setHasUnsavedChanges(true);
                             setTimeout(() => {
                                 if (stepsEndRef.current) {
-                                    stepsEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                                    stepsEndRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
                                 }
                             }, 100);
                         }
@@ -595,12 +622,13 @@
                         scale: 1, x: 0, y: 0, layout: 'row', splitRatio: 0.5, imageHeight: 400, annotations: [], pageBreakAfter: false
                     };
                     setSteps([...steps, newStep]);
+                    setSelectedStepIndex(steps.length);
                     setHasUnsavedChanges(true);
-                    
-                    // キャプチャ時のみ一番下にスクロール
+
+                    // キャプチャ後、追加されたStepが画面中央に表示されるようスクロール
                     setTimeout(() => {
                         if (stepsEndRef.current) {
-                            stepsEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                            stepsEndRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
                         }
                     }, 100);
                 }
@@ -617,6 +645,11 @@
 
             const deleteStep = (index) => {
                 setSteps(prev => prev.filter((_, i) => i !== index));
+                if (selectedStepIndex === index) {
+                    setSelectedStepIndex(null);
+                } else if (selectedStepIndex > index) {
+                    setSelectedStepIndex(selectedStepIndex - 1);
+                }
                 setHasUnsavedChanges(true);
             };
 
@@ -629,6 +662,11 @@
                     next[index + direction] = temp;
                     return next;
                 });
+                if (selectedStepIndex === index) {
+                    setSelectedStepIndex(index + direction);
+                } else if (selectedStepIndex === index + direction) {
+                    setSelectedStepIndex(index);
+                }
                 setHasUnsavedChanges(true);
             };
 
@@ -851,15 +889,48 @@
                                     </button>
                                     <input type="file" accept="image/*" multiple ref={imageInputRef} className="hidden" onChange={handleImageFiles} />
                                 </div>
+
+                                <div className="mt-6 border-t pt-4">
+                                    <h3 className="font-semibold mb-3 text-gray-700">描画ツール</h3>
+                                    {selectedStepIndex === null ? (
+                                        <div className="text-xs text-gray-500 text-center py-4 bg-gray-50 rounded border border-dashed">
+                                            右側のステップを選択してください
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                <button onClick={() => setAnnotationTool(annotationTool === 'circle' ? null : 'circle')} className={`p-2 rounded text-xs ${annotationTool === 'circle' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="円形"><Circle className="w-4 h-4 mx-auto" /></button>
+                                                <button onClick={() => setAnnotationTool(annotationTool === 'arrow' ? null : 'arrow')} className={`p-2 rounded text-xs ${annotationTool === 'arrow' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="矢印"><ArrowRight className="w-4 h-4 mx-auto" /></button>
+                                                <button onClick={() => selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, 1)} disabled={!selectedAnnotation} className="p-2 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30 text-xs" title="太くする">B+</button>
+                                                <button onClick={() => selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, -1)} disabled={!selectedAnnotation} className="p-2 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30 text-xs" title="細くする">B-</button>
+                                            </div>
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                <button onClick={() => setAnnotationTool(annotationTool === 'text-label' ? null : 'text-label')} className={`p-2 rounded text-xs ${annotationTool === 'text-label' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="テキスト"><Type className="w-4 h-4 mx-auto" /></button>
+                                                <button onClick={() => setAnnotationTool(annotationTool === 'number-stamp' ? null : 'number-stamp')} className={`p-2 rounded text-xs ${annotationTool === 'number-stamp' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="番号"><Hash className="w-4 h-4 mx-auto" /></button>
+                                                <button onClick={() => selectedAnnotation && editAnnotationText(selectedAnnotation.stepIndex, selectedAnnotation.annotationId)} disabled={!selectedAnnotation || !(steps[selectedStepIndex]?.annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'text-label' || steps[selectedStepIndex]?.annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'number-stamp')} className="p-2 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30 text-xs" title="編集">編</button>
+                                                <button onClick={() => selectedAnnotation && deleteAnnotation(selectedAnnotation.stepIndex, selectedAnnotation.annotationId)} disabled={!selectedAnnotation} className="p-2 bg-white text-red-600 hover:bg-red-50 rounded border border-gray-200 disabled:opacity-30" title="削除"><Trash2 className="w-4 h-4 mx-auto" /></button>
+                                            </div>
+                                            <div className="grid grid-cols-4 gap-1.5">
+                                                <button onClick={() => rotateImage(selectedStepIndex)} className="p-2 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="回転"><RotateCw className="w-4 h-4 mx-auto" /></button>
+                                                <button onClick={() => zoomImage(selectedStepIndex, 0.1)} className="p-2 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="拡大"><ZoomIn className="w-4 h-4 mx-auto" /></button>
+                                                <button onClick={() => zoomImage(selectedStepIndex, -0.1)} className="p-2 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="縮小"><ZoomOut className="w-4 h-4 mx-auto" /></button>
+                                                <button onClick={() => resetImage(selectedStepIndex)} className="p-2 bg-white text-gray-600 hover:text-red-500 hover:bg-red-50 rounded border border-gray-200" title="リセット"><RefreshCcw className="w-4 h-4 mx-auto" /></button>
+                                            </div>
+                                            <div className="text-xs text-gray-500 mt-2 text-center">
+                                                選択中: Step {selectedStepIndex + 1}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            
+
                             <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
                                 <p className="font-bold mb-1">使い方</p>
                                 <ul className="list-decimal list-inside space-y-1 text-xs opacity-80">
                                     <li>動画を読み込み、再生位置で「キャプチャ」ボタンを押します。</li>
                                     <li>または「画像を追加」から写真などの画像ファイルを追加します。</li>
                                     <li>右側に作業項目がA4サイズのページに追加されます。</li>
-                                    <li>画像の下のボタンで、注釈追加や画像の編集ができます。</li>
+                                    <li>右側のステップをクリックして選択すると、描画ツールが使えます。</li>
                                     <li>注釈は4種類：矢印、丸、テキストラベル、番号スタンプ</li>
                                     <li>注釈はドラッグで移動、選択して変形、太さ変更が可能です。</li>
                                     <li>テキストや番号は「編」ボタンで編集できます。</li>
@@ -882,21 +953,25 @@
                                     <>
                                         {pages.map((page) => (
                                             <div key={page.pageNumber} className="a4-page">
-                                                <div className="space-y-6">
+                                                <div className="space-y-2.5">
                                                     {page.steps.map((step) => {
                                                         const index = steps.indexOf(step);
-                                                        const isColLayout = step.layout === 'col';
                                                         const isLastInPage = page.steps[page.steps.length - 1] === step;
                                                         return (
                                                             <div
                                                                 key={step.id}
                                                                 ref={setStepRef(step.id)}
-                                                                className={`group relative flex gap-6 p-4 rounded-xl border border-gray-300 hover:border-indigo-300 transition-all bg-white step-item ${isColLayout ? 'flex-col step-col' : 'flex-col md:flex-row step-row'} ${step.pageBreakAfter && !isLastInPage ? 'page-break-indicator' : ''}`}
+                                                                className={`group relative flex flex-col md:flex-row gap-6 p-4 rounded-xl border transition-all bg-white step-item cursor-pointer step-row ${step.pageBreakAfter && !isLastInPage ? 'page-break-indicator' : ''} ${selectedStepIndex === index ? 'border-indigo-500 border-2 shadow-lg' : 'border-gray-300 hover:border-indigo-300'}`}
+                                                                onClick={(e) => {
+                                                                    if (!e.target.closest('textarea') && !e.target.closest('button') && !e.target.closest('.step-image-mask')) {
+                                                                        setSelectedStepIndex(index);
+                                                                    }
+                                                                }}
                                                             >
-                                                    <div className={`flex flex-col ${isColLayout ? 'w-full' : ''}`} style={{ width: !isColLayout ? `${(step.splitRatio || 0.5) * 100}%` : '100%' }}>
-                                                        <div className={`flex-shrink-0 step-image-mask relative cursor-move bg-gray-50 border border-gray-200`} style={{ overflow: 'hidden', height: isColLayout ? `${step.imageHeight || 400}px` : 'auto', maxHeight: isColLayout ? 'none' : '300px' }} onMouseDown={(e) => handleImageMouseDown(index, e)}>
-                                                            <div className={`relative w-full h-full flex items-center justify-center ${!isColLayout ? 'aspect-video' : ''}`} style={{overflow: 'visible'}}>
-                                                                <img src={step.image} className="max-w-none transition-transform duration-75 ease-out select-none pointer-events-none" style={{ transform: `translate(${step.x || 0}px, ${step.y || 0}px) scale(${step.scale || 1})`, height: isColLayout ? '100%' : 'auto', width: isColLayout ? 'auto' : '100%' }} draggable="false" />
+                                                    <div className="flex flex-col" style={{ width: `${(step.splitRatio || 0.5) * 100}%` }}>
+                                                        <div className="flex-shrink-0 step-image-mask relative cursor-move bg-gray-50 border border-gray-200" style={{ overflow: 'hidden', maxHeight: '300px' }} onMouseDown={(e) => handleImageMouseDown(index, e)} onClick={(e) => { e.stopPropagation(); setSelectedStepIndex(index); }}>
+                                                            <div className="relative w-full h-full flex items-center justify-center aspect-video" style={{overflow: 'visible'}}>
+                                                                <img src={step.image} className="max-w-none transition-transform duration-75 ease-out select-none pointer-events-none" style={{ transform: `translate(${step.x || 0}px, ${step.y || 0}px) scale(${step.scale || 1})`, width: '100%', height: 'auto' }} draggable="false" />
                                                                 <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded font-mono z-10 pointer-events-none shadow-sm">Step {index + 1}</div>
                                                                 <svg className="absolute w-full h-full pointer-events-none z-20" style={{ pointerEvents: annotationTool || selectedAnnotation ? 'auto' : 'none', overflow: 'hidden', top: 0, left: 0 }} viewBox="0 0 100 100" preserveAspectRatio="none">
                                                                     <defs>
@@ -1068,47 +1143,18 @@
                                                             </div>
                                                             {annotationTool && <div className="absolute inset-0 cursor-crosshair z-20" onClick={(e) => { const containerRef = { current: e.currentTarget.parentElement }; addAnnotation(index, annotationTool, e.clientX, e.clientY, containerRef); }} />}
                                                         </div>
-
-                                                        {/* Toolbar (Under Image - Horizontal) */}
-                                                        <div 
-                                                            className="flex flex-row items-center gap-2 mt-2 p-1.5 bg-gray-50 rounded border border-gray-200 print-hidden justify-center overflow-x-auto step-toolbar"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            onMouseDown={(e) => e.stopPropagation()}
-                                                        >
-                                                            <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'arrow' ? null : 'arrow')} className={`p-1.5 rounded ${annotationTool === 'arrow' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="矢印"><ArrowRight className="w-4 h-4" /></button>
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'circle' ? null : 'circle')} className={`p-1.5 rounded ${annotationTool === 'circle' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="丸"><Circle className="w-4 h-4" /></button>
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'text-label' ? null : 'text-label')} className={`p-1.5 rounded ${annotationTool === 'text-label' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="テキストラベル"><Type className="w-4 h-4" /></button>
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'number-stamp' ? null : 'number-stamp')} className={`p-1.5 rounded ${annotationTool === 'number-stamp' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="番号スタンプ"><Hash className="w-4 h-4" /></button>
-                                                            </div>
-
-                                                            <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && editAnnotationText(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation || !(steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'text-label' || steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'number-stamp')} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="テキスト/番号を編集">編</button>
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, 1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を太く">B+</button>
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, -1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を細く">B-</button>
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && deleteAnnotation(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-red-600 hover:bg-red-50 rounded border border-gray-200 disabled:opacity-50" title="削除"><Trash2 className="w-4 h-4" /></button>
-                                                            </div>
-                                                            
-                                                            <div className="flex gap-1">
-                                                                <button onClick={() => rotateImage(index)} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="回転"><RotateCw className="w-4 h-4" /></button>
-                                                                <button onClick={() => zoomImage(index, 0.1)} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="拡大"><ZoomIn className="w-4 h-4" /></button>
-                                                                <button onClick={() => zoomImage(index, -0.1)} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="縮小"><ZoomOut className="w-4 h-4" /></button>
-                                                                <button onClick={() => resetImage(index)} className="p-1.5 bg-white text-gray-600 hover:text-red-500 hover:bg-red-50 rounded border border-gray-200" title="リセット"><RefreshCcw className="w-4 h-4" /></button>
-                                                            </div>
-                                                        </div>
                                                     </div>
 
-                                                    <div className={`bg-indigo-100 hover:bg-indigo-400 transition-colors flex-shrink-0 relative group print-hidden ${isColLayout ? 'h-3 w-full cursor-row-resize' : 'w-1.5 h-auto cursor-col-resize'}`} onMouseDown={(e) => { const container = e.currentTarget.closest('.step-item'); if (container) handleSplitMouseDown(index, e, { current: container }, isColLayout ? 'col' : 'row'); }}>
-                                                        <div className={`absolute bg-gray-400/50 rounded-full ${isColLayout ? 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-1' : 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1 h-8'}`}></div>
+                                                    <div className="bg-indigo-100 hover:bg-indigo-400 transition-colors flex-shrink-0 relative group print-hidden w-1.5 h-auto cursor-col-resize" onMouseDown={(e) => { const container = e.currentTarget.closest('.step-item'); if (container) handleSplitMouseDown(index, e, { current: container }, 'row'); }}>
+                                                        <div className="absolute bg-gray-400/50 rounded-full top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1 h-8"></div>
                                                     </div>
 
-                                                    <div className={`flex flex-col gap-2 step-text-container ${isColLayout ? 'w-full' : ''}`} style={!isColLayout ? { width: `${(1 - (step.splitRatio || 0.5)) * 100}%` } : {}}>
+                                                    <div className="flex flex-col gap-2 step-text-container" style={{ width: `${(1 - (step.splitRatio || 0.5)) * 100}%` }}>
                                                         <textarea value={step.text} onChange={(e) => handleTextChange(index, e.target.value)} className="w-full p-3 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none resize-vertical text-gray-700 leading-relaxed shadow-inner" style={{ minHeight: '120px' }} placeholder="作業の手順やポイントを入力してください..." />
                                                     </div>
 
                                                     <div className="absolute -top-3 -right-3 flex gap-1 print-hidden z-40">
                                                         <button onClick={() => togglePageBreak(index)} className={`border shadow-sm p-1.5 rounded-md transition-colors mr-2 ${step.pageBreakAfter ? "bg-orange-500 text-white border-orange-600" : "bg-white text-gray-500 hover:text-orange-500 hover:bg-orange-50"}`} title={step.pageBreakAfter ? "改ページ解除" : "強制改ページ"}><FileBreak className="w-4 h-4" /></button>
-                                                        <button onClick={() => toggleLayout(index)} className={`bg-white border shadow-sm p-1.5 rounded-md transition-colors mr-2 ${isColLayout ? "text-indigo-600 border-indigo-200 bg-indigo-50" : "text-gray-500 hover:text-indigo-600"}`} title={isColLayout ? "横並びに戻す" : "画像を大きく表示（縦並び）"}>{isColLayout ? <LayoutRow className="w-4 h-4" /> : <LayoutCol className="w-4 h-4" />}</button>
                                                         <button onClick={() => moveStep(index, -1)} disabled={index === 0} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="上へ移動"><ArrowUp className="w-4 h-4" /></button>
                                                         <button onClick={() => moveStep(index, 1)} disabled={index === steps.length - 1} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="下へ移動"><ArrowDown className="w-4 h-4" /></button>
                                                         <button onClick={() => deleteStep(index)} className="bg-white text-gray-400 hover:text-red-500 border shadow-sm p-1.5 rounded-md" title="削除"><Trash2 className="w-4 h-4" /></button>
