@@ -204,7 +204,7 @@
         // --- Rich Text Editor Component ---
         function RichTextEditor({ value, onChange, placeholder, style, className }) {
             const editorRef = useRef(null);
-            const lastHtml = useRef(value || '');
+            const lastHtml = useRef('');
 
             useEffect(() => {
                 if (editorRef.current && value !== lastHtml.current) {
