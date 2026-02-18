@@ -27,10 +27,18 @@
 
         /* --- 印刷用スタイル --- */
         @media print {
+            /* ページ設定: A4サイズ、余白なし（ブラウザの「なし」「最小」に最適化） */
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+
             body, html {
                 height: auto;
                 overflow: visible;
-                background: white; 
+                background: white;
+                margin: 0 !important;
+                padding: 0 !important;
             }
             
             .print-hidden { display: none !important; }
@@ -41,9 +49,17 @@
                 overflow: visible !important;
                 background: white !important;
                 padding: 0 !important;
+                margin: 0 !important;
             }
 
-            .a4-preview {
+            /* メインフレックスコンテナを印刷用にリセット */
+            .flex-1.flex.overflow-hidden {
+                display: block !important;
+                overflow: visible !important;
+            }
+
+            .a4-preview,
+            .right-content {
                 width: 100% !important;
                 max-width: none !important;
                 box-shadow: none !important;
@@ -54,37 +70,82 @@
                 background-image: none !important;
             }
             
+            /* ステップ間隔の統一 */
+            .space-y-6 {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .space-y-6 > * + * {
+                margin-top: 8px !important;
+            }
+
             .step-item {
                 break-inside: avoid;
                 page-break-inside: avoid;
                 border: 1px solid #ddd !important;
-                margin-bottom: 15px !important;
-                padding: 10px !important;
-                height: auto;
+                margin: 0 0 1mm 0 !important;
+                padding: 2mm !important;
+                height: 73mm !important;
+                max-height: 73mm !important;
+                overflow: hidden !important;
                 display: flex !important;
+                flex-direction: row !important;
+                gap: 2mm !important;
                 page-break-after: auto;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                box-sizing: border-box !important;
+            }
+
+            /* 印刷時の画像コンテナ: 55% */
+            .step-item > div:first-child {
+                width: 55% !important;
+                height: 100% !important;
+                flex-shrink: 0 !important;
+            }
+
+            /* 印刷時のテキストコンテナ: 43% */
+            .step-text-container {
+                width: 43% !important;
+                height: 100% !important;
+                flex-shrink: 0 !important;
+                padding: 1.5mm !important;
+                box-sizing: border-box !important;
             }
 
             .step-image-mask {
-                overflow: hidden !important; 
-            }
-            .step-toolbar {
-                display: none !important;
+                overflow: hidden !important;
+                width: 100% !important;
+                height: 100% !important;
+                max-height: none !important;
             }
 
-            textarea { 
-                border: none !important; 
-                resize: none !important;
-                padding: 0 !important;
-                overflow: visible !important;
+            .step-image-mask > div {
+                height: 100% !important;
             }
-            textarea::-webkit-resizer {
-                display: none !important;
+
+            /* リッチテキストエディタの印刷時スタイル */
+            .rich-text-editor {
+                height: 100% !important;
+                overflow: auto !important;
+                border: 1px solid #e5e7eb !important;
+                padding: 2mm !important;
+                padding-right: 3mm !important;
+                box-shadow: none !important;
+                box-sizing: border-box !important;
+                word-wrap: break-word !important;
+                word-break: break-word !important;
+                line-height: 1.4 !important;
             }
             
             .lg\:col-span-8 {
                 width: 100% !important;
                 grid-column: span 12 / span 12 !important;
+            }
+
+            /* h-full等のフルハイト指定を解除 */
+            .h-full {
+                height: auto !important;
             }
         }
 
@@ -97,6 +158,13 @@
         textarea.resize-vertical {
             resize: vertical !important;
             min-height: 100px;
+        }
+
+        /* contentEditableプレースホルダー */
+        .rich-text-editor:empty:before {
+            content: attr(data-placeholder);
+            color: #9ca3af;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -127,13 +195,62 @@
         const ZoomIn = (props) => (<IconBase {...props}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></IconBase>);
         const ZoomOut = (props) => (<IconBase {...props}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></IconBase>);
         const RefreshCcw = (props) => (<IconBase {...props}><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></IconBase>);
-        const LayoutRow = (props) => (<IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></IconBase>);
-        const LayoutCol = (props) => (<IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></IconBase>);
         const ArrowRight = (props) => (<IconBase {...props}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></IconBase>);
         const Circle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle></IconBase>);
         const PlusCircle = (props) => (<IconBase {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></IconBase>);
         const Type = (props) => (<IconBase {...props}><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></IconBase>);
         const Hash = (props) => (<IconBase {...props}><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></IconBase>);
+
+        // --- Rich Text Editor Component ---
+        function RichTextEditor({ value, onChange, placeholder, style, className }) {
+            const editorRef = useRef(null);
+            const lastHtml = useRef('');
+
+            useEffect(() => {
+                if (editorRef.current && value !== lastHtml.current) {
+                    editorRef.current.innerHTML = value || '';
+                    lastHtml.current = value || '';
+                }
+            }, [value]);
+
+            const handleInput = () => {
+                const html = editorRef.current.innerHTML;
+                lastHtml.current = html;
+                if (onChange) onChange(html);
+            };
+
+            const execCmd = (e, cmd, val) => {
+                e.preventDefault();
+                e.stopPropagation();
+                editorRef.current.focus();
+                document.execCommand(cmd, false, val);
+                handleInput();
+            };
+
+            return (
+                <div style={style} className={className + ' flex flex-col'}>
+                    <div
+                        ref={editorRef}
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={handleInput}
+                        data-placeholder={placeholder}
+                        className="rich-text-editor w-full p-3 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-gray-700 leading-relaxed shadow-inner overflow-auto"
+                        style={{ flex: 1, fontSize: '16px', minHeight: 0 }}
+                    />
+                    <div className="flex gap-1 mt-1 print-hidden flex-wrap" style={{ fontSize: '11px' }}>
+                        <button onMouseDown={(e) => execCmd(e, 'bold')} className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 font-bold" title="太字">B</button>
+                        <button onMouseDown={(e) => execCmd(e, 'foreColor', '#dc2626')} className="px-2 py-0.5 bg-gray-100 hover:bg-red-100 rounded border border-gray-300 text-red-600" title="赤文字">赤</button>
+                        <button onMouseDown={(e) => execCmd(e, 'foreColor', '#1d4ed8')} className="px-2 py-0.5 bg-gray-100 hover:bg-blue-100 rounded border border-gray-300 text-blue-700" title="青文字">青</button>
+                        <button onMouseDown={(e) => execCmd(e, 'foreColor', '#000000')} className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300" title="黒文字">黒</button>
+                        <span className="w-px bg-gray-300 mx-0.5"></span>
+                        <button onMouseDown={(e) => execCmd(e, 'fontSize', '2')} className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300" title="小">小</button>
+                        <button onMouseDown={(e) => execCmd(e, 'fontSize', '4')} className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300" title="中">中</button>
+                        <button onMouseDown={(e) => execCmd(e, 'fontSize', '6')} className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300" title="大">大</button>
+                    </div>
+                </div>
+            );
+        }
 
         // --- Main Component ---
         function App() {
@@ -141,13 +258,17 @@
             const [steps, setSteps] = useState([]);
             const [fileName, setFileName] = useState("");
             const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-            
+
             const [dragState, setDragState] = useState({ isDragging: false, stepIndex: null, startX: 0, startY: 0, initialImgX: 0, initialImgY: 0 });
-            const [splitDragState, setSplitDragState] = useState({ isDragging: false, stepIndex: null, startX: 0, startY: 0, containerWidth: 0, containerHeight: 0, initialRatio: 0.5, initialHeight: 400, type: 'row' });
-            
+            const [splitDragState, setSplitDragState] = useState({ isDragging: false, stepIndex: null, startX: 0, startY: 0, containerWidth: 0, initialRatio: 0.5 });
+
             const [annotationTool, setAnnotationTool] = useState(null);
-            const [selectedAnnotation, setSelectedAnnotation] = useState(null); 
-            const [handleDragState, setHandleDragState] = useState(null); 
+            const [selectedAnnotation, setSelectedAnnotation] = useState(null);
+            const [handleDragState, setHandleDragState] = useState(null);
+            const [activeStepIndex, setActiveStepIndex] = useState(null);
+            const [selectedSteps, setSelectedSteps] = useState(new Set());
+            const [selectionMode, setSelectionMode] = useState(false);
+            const [deleteConfirm, setDeleteConfirm] = useState({ show: false, index: null });
 
             const videoRef = useRef(null);
             const canvasRef = useRef(null);
@@ -196,11 +317,11 @@
             };
 
             // --- 分割バードラッグ ---
-            const handleSplitMouseDown = (index, e, containerRef, type) => {
+            const handleSplitMouseDown = (index, e, containerRef) => {
                 e.preventDefault(); e.stopPropagation();
                 const container = containerRef.current;
                 if (container) {
-                    setSplitDragState({ isDragging: true, stepIndex: index, startX: e.clientX, startY: e.clientY, containerWidth: container.offsetWidth, containerHeight: container.offsetHeight, initialRatio: steps[index].splitRatio || 0.5, initialHeight: steps[index].imageHeight || 400, type: type });
+                    setSplitDragState({ isDragging: true, stepIndex: index, startX: e.clientX, startY: e.clientY, containerWidth: container.offsetWidth, initialRatio: steps[index].splitRatio || 0.5 });
                 }
             };
             const handleSplitMouseMove = (e) => {
@@ -208,14 +329,9 @@
                 e.preventDefault();
                 setSteps(prev => {
                     const next = [...prev];
-                    if (splitDragState.type === 'row') {
-                        const deltaX = e.clientX - splitDragState.startX;
-                        const newRatio = Math.max(0.2, Math.min(0.8, splitDragState.initialRatio + (deltaX / splitDragState.containerWidth)));
-                        next[splitDragState.stepIndex].splitRatio = newRatio;
-                    } else {
-                        const deltaY = e.clientY - splitDragState.startY;
-                        next[splitDragState.stepIndex].imageHeight = Math.max(100, Math.min(1000, splitDragState.initialHeight + deltaY));
-                    }
+                    const deltaX = e.clientX - splitDragState.startX;
+                    const newRatio = Math.max(0.2, Math.min(0.8, splitDragState.initialRatio + (deltaX / splitDragState.containerWidth)));
+                    next[splitDragState.stepIndex].splitRatio = newRatio;
                     return next;
                 });
                 setHasUnsavedChanges(true);
@@ -271,7 +387,7 @@
                         ann.ry = Math.max(1, initialAnn.ry + (deltaY / 2));
                     } else if (type === 'resize-text-label') {
                         // テキストラベルのフォントサイズ変更
-                        ann.fontSize = Math.max(1, Math.min(10, initialAnn.fontSize + (deltaY / 10)));
+                        ann.fontSize = Math.max(1, Math.min(30, initialAnn.fontSize + (deltaY / 10)));
                     } else if (type === 'resize-number-stamp') {
                         // 番号スタンプのサイズ変更
                         const avgDelta = (deltaX + deltaY) / 2;
@@ -371,7 +487,8 @@
                     strokeWidth: 2,
                     // テキストラベル用
                     text: type === 'text-label' ? 'テキスト' : undefined,
-                    fontSize: type === 'text-label' ? 3 : undefined,
+                    fontSize: type === 'text-label' ? 14 : undefined,
+                    color: type === 'text-label' ? 'white' : undefined,
                     // 番号スタンプ用
                     number: type === 'number-stamp' ? nextNumber : undefined,
                     stampSize: type === 'number-stamp' ? 6 : undefined,
@@ -438,6 +555,18 @@
                 }
             };
 
+            const changeTextLabelColor = (stepIndex, annotationId, color) => {
+                setSteps(prev => {
+                    const next = [...prev];
+                    const ann = next[stepIndex].annotations.find(a => a.id === annotationId);
+                    if (ann && ann.type === 'text-label') {
+                        ann.color = color;
+                    }
+                    return next;
+                });
+                setHasUnsavedChanges(true);
+            };
+
             // 動画・キャプチャ・画像アップロード処理
             const handleFileUpload = (event) => {
                 const file = event.target.files[0];
@@ -449,35 +578,43 @@
                 const files = e.target.files;
                 if (!files || files.length === 0) return;
 
-                const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                let imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
                 if (imageFiles.length === 0) return;
 
-                let loadedCount = 0;
-                const newSteps = [];
-
-                imageFiles.forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        newSteps.push({
-                            id: Date.now() + Math.random(),
-                            originalImage: ev.target.result,
-                            image: ev.target.result,
-                            text: ``,
-                            scale: 1, x: 0, y: 0, layout: 'row', splitRatio: 0.5, imageHeight: 400, annotations: []
-                        });
-                        loadedCount++;
-                        if (loadedCount === imageFiles.length) {
-                            setSteps(prev => [...prev, ...newSteps]);
-                            setHasUnsavedChanges(true);
-                            setTimeout(() => {
-                                if (stepsEndRef.current) {
-                                    stepsEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                                }
-                            }, 100);
-                        }
-                    };
-                    reader.readAsDataURL(file);
+                // ファイル名（数字）で昇順にソート
+                imageFiles.sort((a, b) => {
+                    const numA = parseInt(a.name.match(/\d+/)?.[0] || '0', 10);
+                    const numB = parseInt(b.name.match(/\d+/)?.[0] || '0', 10);
+                    return numA - numB;
                 });
+
+                // Promise.allを使用して順序を保証
+                const promises = imageFiles.map((file) => {
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            resolve({
+                                id: Date.now() + Math.random(),
+                                originalImage: ev.target.result,
+                                image: ev.target.result,
+                                text: ``,
+                                scale: 1, x: 0, y: 0, splitRatio: 0.5, annotations: []
+                            });
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                Promise.all(promises).then((newSteps) => {
+                    setSteps(prev => [...prev, ...newSteps]);
+                    setHasUnsavedChanges(true);
+                    setTimeout(() => {
+                        if (stepsEndRef.current) {
+                            stepsEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                        }
+                    }, 100);
+                });
+
                 e.target.value = '';
             };
 
@@ -495,11 +632,11 @@
                         originalImage: dataUrl,
                         image: dataUrl,
                         text: ``,
-                        scale: 1, x: 0, y: 0, layout: 'row', splitRatio: 0.5, imageHeight: 400, annotations: []
+                        scale: 1, x: 0, y: 0, splitRatio: 0.5, annotations: []
                     };
                     setSteps([...steps, newStep]);
                     setHasUnsavedChanges(true);
-                    
+
                     // キャプチャ時のみ一番下にスクロール
                     setTimeout(() => {
                         if (stepsEndRef.current) {
@@ -519,12 +656,25 @@
             };
 
             const deleteStep = (index) => {
+                setDeleteConfirm({ show: true, index });
+            };
+
+            const confirmDelete = () => {
+                const index = deleteConfirm.index;
                 setSteps(prev => prev.filter((_, i) => i !== index));
+                if (activeStepIndex === index) setActiveStepIndex(null);
+                setSelectedSteps(new Set());
                 setHasUnsavedChanges(true);
+                setDeleteConfirm({ show: false, index: null });
+            };
+
+            const cancelDelete = () => {
+                setDeleteConfirm({ show: false, index: null });
             };
 
             const moveStep = (index, direction) => {
                 if ((direction === -1 && index === 0) || (direction === 1 && index === steps.length - 1)) return;
+                const newIndex = index + direction;
                 setSteps(prev => {
                     const next = [...prev];
                     const temp = next[index];
@@ -533,18 +683,40 @@
                     return next;
                 });
                 setHasUnsavedChanges(true);
+                setTimeout(() => {
+                    const el = scrollAreaRef.current?.querySelector(`[data-step-index="${newIndex}"]`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 50);
             };
 
-            const toggleLayout = (index) => {
+            const moveBulkSteps = (direction) => {
+                if (selectedSteps.size === 0) return;
+                const sortedIndices = [...selectedSteps].sort((a, b) => a - b);
+                if (direction === -1 && sortedIndices[0] === 0) return;
+                if (direction === 1 && sortedIndices[sortedIndices.length - 1] === steps.length - 1) return;
                 setSteps(prev => {
                     const next = [...prev];
-                    const current = next[index].layout || 'row';
-                    next[index].layout = current === 'row' ? 'col' : 'row';
-                    if (next[index].layout === 'row') next[index].splitRatio = 0.5;
-                    else next[index].imageHeight = 400;
+                    if (direction === -1) {
+                        for (const idx of sortedIndices) {
+                            const temp = next[idx]; next[idx] = next[idx - 1]; next[idx - 1] = temp;
+                        }
+                    } else {
+                        for (const idx of [...sortedIndices].reverse()) {
+                            const temp = next[idx]; next[idx] = next[idx + 1]; next[idx + 1] = temp;
+                        }
+                    }
                     return next;
                 });
+                setSelectedSteps(new Set(sortedIndices.map(i => i + direction)));
                 setHasUnsavedChanges(true);
+            };
+
+            const toggleStepSelection = (index) => {
+                setSelectedSteps(prev => {
+                    const next = new Set(prev);
+                    if (next.has(index)) next.delete(index); else next.add(index);
+                    return next;
+                });
             };
 
             const rotateImage = (index) => {
@@ -635,7 +807,6 @@
             const fixStepData = (step) => ({
                 ...step,
                 splitRatio: step.splitRatio || 0.5,
-                imageHeight: step.imageHeight || 400,
                 annotations: (step.annotations || []).map(a => {
                     // 旧データ(size)があればrx,ryに変換する簡易ロジック
                     const baseSize = (a.size || 1.0) * 5;
@@ -648,7 +819,8 @@
                         strokeWidth: a.strokeWidth || 2,
                         // テキストラベル用のデフォルト値
                         text: a.type === 'text-label' ? (a.text || 'テキスト') : a.text,
-                        fontSize: a.type === 'text-label' ? (a.fontSize || 3) : a.fontSize,
+                        fontSize: a.type === 'text-label' ? (a.fontSize || 14) : a.fontSize,
+                        color: a.type === 'text-label' ? (a.color || 'white') : a.color,
                         // 番号スタンプ用のデフォルト値
                         number: a.type === 'number-stamp' ? (a.number || 1) : a.number,
                         stampSize: a.type === 'number-stamp' ? (a.stampSize || 6) : a.stampSize,
@@ -700,19 +872,66 @@
                                     </button>
                                     <input type="file" accept="image/*" multiple ref={imageInputRef} className="hidden" onChange={handleImageFiles} />
                                 </div>
+
+                                <div className="mt-6 border-t pt-4">
+                                    <h3 className="font-semibold mb-3 text-gray-700">編集ツール</h3>
+                                    {activeStepIndex === null && <p className="text-xs text-gray-400 mb-2">右側のステップをクリックして選択</p>}
+                                    <div className="space-y-2">
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setAnnotationTool(annotationTool === 'circle' ? null : 'circle')} disabled={activeStepIndex === null} className={`flex-1 p-2 rounded text-sm ${annotationTool === 'circle' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'} disabled:opacity-30`} title="丸"><Circle className="w-4 h-4 mx-auto" /></button>
+                                            <button onClick={() => setAnnotationTool(annotationTool === 'arrow' ? null : 'arrow')} disabled={activeStepIndex === null} className={`flex-1 p-2 rounded text-sm ${annotationTool === 'arrow' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'} disabled:opacity-30`} title="矢印"><ArrowRight className="w-4 h-4 mx-auto" /></button>
+                                            <button onClick={() => selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, 1)} disabled={!selectedAnnotation} className="flex-1 p-2 bg-white text-gray-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30 text-xs" title="太くする">太</button>
+                                            <button onClick={() => selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, -1)} disabled={!selectedAnnotation} className="flex-1 p-2 bg-white text-gray-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30 text-xs" title="細くする">細</button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setAnnotationTool(annotationTool === 'text-label' ? null : 'text-label')} disabled={activeStepIndex === null} className={`flex-1 p-2 rounded text-sm ${annotationTool === 'text-label' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'} disabled:opacity-30`} title="テキスト"><Type className="w-4 h-4 mx-auto" /></button>
+                                            <button onClick={() => setAnnotationTool(annotationTool === 'number-stamp' ? null : 'number-stamp')} disabled={activeStepIndex === null} className={`flex-1 p-2 rounded text-sm ${annotationTool === 'number-stamp' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'} disabled:opacity-30`} title="番号"><Hash className="w-4 h-4 mx-auto" /></button>
+                                            <button onClick={() => selectedAnnotation && activeStepIndex !== null && steps[activeStepIndex]?.annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'text-label' && changeTextLabelColor(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, '#dc2626')} disabled={!selectedAnnotation || !(activeStepIndex !== null && steps[activeStepIndex]?.annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'text-label')} className="flex-1 p-2 bg-white text-red-600 hover:bg-red-100 rounded border border-gray-200 disabled:opacity-30 text-xs" title="テキストラベルを赤文字にする">赤字</button>
+                                            <button onClick={() => selectedAnnotation && deleteAnnotation(selectedAnnotation.stepIndex, selectedAnnotation.annotationId)} disabled={!selectedAnnotation} className="flex-1 p-2 bg-white text-red-600 hover:bg-red-50 rounded border border-gray-200 disabled:opacity-30" title="削除"><Trash2 className="w-4 h-4 mx-auto" /></button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => activeStepIndex !== null && rotateImage(activeStepIndex)} disabled={activeStepIndex === null} className="flex-1 p-2 bg-white text-gray-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30" title="回転"><RotateCw className="w-4 h-4 mx-auto" /></button>
+                                            <button onClick={() => activeStepIndex !== null && zoomImage(activeStepIndex, 0.1)} disabled={activeStepIndex === null} className="flex-1 p-2 bg-white text-gray-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30" title="拡大"><ZoomIn className="w-4 h-4 mx-auto" /></button>
+                                            <button onClick={() => activeStepIndex !== null && zoomImage(activeStepIndex, -0.1)} disabled={activeStepIndex === null} className="flex-1 p-2 bg-white text-gray-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-30" title="縮小"><ZoomOut className="w-4 h-4 mx-auto" /></button>
+                                            <button onClick={() => activeStepIndex !== null && resetImage(activeStepIndex)} disabled={activeStepIndex === null} className="flex-1 p-2 bg-white text-gray-600 hover:bg-red-50 rounded border border-gray-200 disabled:opacity-30" title="リセット"><RefreshCcw className="w-4 h-4 mx-auto" /></button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 border-t pt-4">
+                                    <h3 className="font-semibold mb-3 text-gray-700">コンテンツ操作</h3>
+                                    <div className="space-y-2">
+                                        <button
+                                            onClick={() => { setSelectionMode(m => !m); setSelectedSteps(new Set()); }}
+                                            disabled={steps.length === 0}
+                                            className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm border font-medium transition-colors disabled:opacity-30 ${selectionMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                                        >
+                                            {selectionMode ? '選択を終了' : '複数選択'}
+                                        </button>
+                                        {selectionMode && (
+                                            <div className="flex gap-2">
+                                                <span className="flex items-center justify-center text-xs text-gray-500 bg-gray-50 rounded border border-gray-200 px-2 py-1 whitespace-nowrap">
+                                                    {selectedSteps.size}件選択
+                                                </span>
+                                                <button onClick={() => moveBulkSteps(-1)} disabled={selectedSteps.size === 0} className="flex-1 flex items-center justify-center gap-1 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-30"><ArrowUp className="w-3 h-3" /> 上へ</button>
+                                                <button onClick={() => moveBulkSteps(1)} disabled={selectedSteps.size === 0} className="flex-1 flex items-center justify-center gap-1 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-30"><ArrowDown className="w-3 h-3" /> 下へ</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                            
+
                             <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
                                 <p className="font-bold mb-1">使い方</p>
                                 <ul className="list-decimal list-inside space-y-1 text-xs opacity-80">
                                     <li>動画を読み込み、再生位置で「キャプチャ」ボタンを押します。</li>
                                     <li>または「画像を追加」から写真などの画像ファイルを追加します。</li>
-                                    <li>右側に作業項目が追加されます。</li>
-                                    <li>画像の下のボタンで、注釈追加や画像の編集ができます。</li>
+                                    <li>右側に作業項目が追加されます。ステップをクリックして選択します。</li>
+                                    <li>編集ツールで、注釈追加や画像の編集ができます。</li>
                                     <li>注釈は4種類：矢印、丸、テキストラベル、番号スタンプ</li>
                                     <li>注釈はドラッグで移動、選択して変形、太さ変更が可能です。</li>
-                                    <li>テキストや番号は「編」ボタンで編集できます。</li>
-                                    <li>テキスト欄の右下をドラッグして高さを自由に調整できます。</li>
+                                    <li>テキストや番号はダブルクリックで編集できます。</li>
+                                    <li>テキストラベルを選択後、「赤字」ボタンで文字色を赤に変更できます。</li>
                                 </ul>
                             </div>
                         </div>
@@ -720,7 +939,7 @@
                         <div className="flex-1 bg-gray-200 overflow-y-auto scroll-area custom-scrollbar" ref={scrollAreaRef} onClick={() => setSelectedAnnotation(null)}>
                             {/* A4プレビュー枠を外し、通常のリスト表示に戻す */}
                             <div className="w-full max-w-5xl mx-auto my-8 p-4 right-content transition-all">
-                                <div className="flex justify-between items-center mb-6 pb-2 print-hidden border-b border-gray-300">
+                                <div className="flex items-center mb-6 pb-2 print-hidden border-b border-gray-300">
                                     <h2 className="font-semibold flex items-center gap-2 text-lg text-gray-700"><FileText className="w-5 h-5 text-indigo-500" /> 作成された作業項目 ({steps.length})</h2>
                                 </div>
 
@@ -729,13 +948,12 @@
                                 ) : (
                                     <div className="space-y-6 print:space-y-0 print:block">
                                         {steps.map((step, index) => {
-                                            const isColLayout = step.layout === 'col';
                                             return (
-                                                <div key={step.id} className={`group relative flex gap-6 p-4 rounded-xl border border-gray-300 hover:border-indigo-300 transition-all bg-white step-item ${isColLayout ? 'flex-col step-col' : 'flex-col md:flex-row step-row'}`}>
-                                                    <div className={`flex flex-col ${isColLayout ? 'w-full' : ''}`} style={{ width: !isColLayout ? `${(step.splitRatio || 0.5) * 100}%` : '100%' }}>
-                                                        <div className={`flex-shrink-0 step-image-mask relative cursor-move bg-gray-50 border border-gray-200`} style={{ overflow: 'hidden', height: isColLayout ? `${step.imageHeight || 400}px` : 'auto', maxHeight: isColLayout ? 'none' : '300px' }} onMouseDown={(e) => handleImageMouseDown(index, e)}>
-                                                            <div className={`relative w-full h-full flex items-center justify-center ${!isColLayout ? 'aspect-video' : ''}`} style={{overflow: 'visible'}}>
-                                                                <img src={step.image} className="max-w-none transition-transform duration-75 ease-out select-none pointer-events-none" style={{ transform: `translate(${step.x || 0}px, ${step.y || 0}px) scale(${step.scale || 1})`, height: isColLayout ? '100%' : 'auto', width: isColLayout ? 'auto' : '100%' }} draggable="false" />
+                                                <div key={step.id} data-step-index={index} className={`group relative flex gap-3 p-3 rounded-xl border transition-all bg-white step-item flex-row step-row ${activeStepIndex === index ? 'border-indigo-500 shadow-lg' : selectedSteps.has(index) ? 'border-blue-400 shadow-md bg-blue-50' : 'border-gray-300 hover:border-indigo-300'}`} onClick={() => setActiveStepIndex(index)}>
+                                                    <div className="flex flex-col" style={{ width: '520px', flexShrink: 0 }}>
+                                                        <div className="flex-shrink-0 step-image-mask relative cursor-move bg-gray-50 border border-gray-200" style={{ overflow: 'hidden', width: '520px', height: '255.13px' }} onMouseDown={(e) => handleImageMouseDown(index, e)}>
+                                                            <div className="relative w-full h-full flex items-center justify-center" style={{overflow: 'visible'}}>
+                                                                <img src={step.image} className="max-w-none transition-transform duration-75 ease-out select-none pointer-events-none" style={{ transform: `translate(${step.x || 0}px, ${step.y || 0}px) scale(${step.scale || 1})`, width: '100%' }} draggable="false" />
                                                                 <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded font-mono z-10 pointer-events-none shadow-sm">Step {index + 1}</div>
                                                                 <svg className="absolute w-full h-full pointer-events-none z-20" style={{ pointerEvents: annotationTool || selectedAnnotation ? 'auto' : 'none', overflow: 'hidden', top: 0, left: 0 }} viewBox="0 0 100 100" preserveAspectRatio="none">
                                                                     <defs>
@@ -765,7 +983,7 @@
                                                                         }
 
                                                                         return (
-                                                                            <g key={ann.id} transform={`translate(${ann.x}, ${ann.y})`} className="pointer-events-auto" onClick={(e) => { e.stopPropagation(); setSelectedAnnotation({stepIndex: index, annotationId: ann.id}); }}>
+                                                            <g key={ann.id} transform={`translate(${ann.x}, ${ann.y})`} className="pointer-events-auto" onClick={(e) => { e.stopPropagation(); setSelectedAnnotation({stepIndex: index, annotationId: ann.id}); }} onDoubleClick={(e) => { e.stopPropagation(); if (ann.type === 'text-label' || ann.type === 'number-stamp') editAnnotationText(index, ann.id); }}>
                                                                                 {/* ヒットエリア(透明な太い線/楕円) */}
                                                                                  {ann.type === 'arrow' && (
                                                                                      <line x1={p1x} y1={p1y} x2={p2x} y2={p2y} stroke="transparent" strokeWidth="20" />
@@ -815,15 +1033,15 @@
                                                                                 )}
                                                                                 {ann.type === 'text-label' && (
                                                                                     <>
-                                                                                        {/* テキストラベル: 黒ブラー付き白テキスト */}
+                                                                                        {/* テキストラベル: 黒ブラー付きテキスト */}
                                                                                         <g>
-                                                                                            {/* テキスト本体（白、黒ブラー効果） */}
+                                                                                            {/* テキスト本体（黒ブラー効果） */}
                                                                                             <text
                                                                                                 x="0"
                                                                                                 y="0"
                                                                                                 fontSize={ann.fontSize || 3}
                                                                                                 fontWeight="bold"
-                                                                                                fill="white"
+                                                                                                fill={ann.color || 'white'}
                                                                                                 textAnchor="middle"
                                                                                                 dominantBaseline="middle"
                                                                                                 filter="url(#text-glow)"
@@ -907,49 +1125,26 @@
                                                             </div>
                                                             {annotationTool && <div className="absolute inset-0 cursor-crosshair z-20" onClick={(e) => { const containerRef = { current: e.currentTarget.parentElement }; addAnnotation(index, annotationTool, e.clientX, e.clientY, containerRef); }} />}
                                                         </div>
+                                                    </div>
 
-                                                        {/* Toolbar (Under Image - Horizontal) */}
-                                                        <div 
-                                                            className="flex flex-row items-center gap-2 mt-2 p-1.5 bg-gray-50 rounded border border-gray-200 print-hidden justify-center overflow-x-auto step-toolbar"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            onMouseDown={(e) => e.stopPropagation()}
-                                                        >
-                                                            <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'arrow' ? null : 'arrow')} className={`p-1.5 rounded ${annotationTool === 'arrow' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="矢印"><ArrowRight className="w-4 h-4" /></button>
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'circle' ? null : 'circle')} className={`p-1.5 rounded ${annotationTool === 'circle' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="丸"><Circle className="w-4 h-4" /></button>
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'text-label' ? null : 'text-label')} className={`p-1.5 rounded ${annotationTool === 'text-label' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="テキストラベル"><Type className="w-4 h-4" /></button>
-                                                                <button onClick={() => setAnnotationTool(annotationTool === 'number-stamp' ? null : 'number-stamp')} className={`p-1.5 rounded ${annotationTool === 'number-stamp' ? 'bg-red-500 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`} title="番号スタンプ"><Hash className="w-4 h-4" /></button>
-                                                            </div>
+                                                    <div className="step-text-container" style={{ width: '330px', flexShrink: 0 }}>
+                                                        <RichTextEditor
+                                                            value={step.text}
+                                                            onChange={(html) => handleTextChange(index, html)}
+                                                            placeholder="作業の手順やポイントを入力..."
+                                                            style={{ width: '330px', height: '255.13px' }}
+                                                        />
+                                                    </div>
 
-                                                            <div className="flex gap-1 border-r pr-2 mr-1 border-gray-300">
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && editAnnotationText(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation || !(steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'text-label' || steps[index].annotations?.find(a => a.id === selectedAnnotation?.annotationId)?.type === 'number-stamp')} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="テキスト/番号を編集">編</button>
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, 1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を太く">B+</button>
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && changeStrokeWidth(selectedAnnotation.stepIndex, selectedAnnotation.annotationId, -1); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200 disabled:opacity-50" title="線を細く">B-</button>
-                                                                <button onClick={(e) => { e.stopPropagation(); selectedAnnotation && deleteAnnotation(selectedAnnotation.stepIndex, selectedAnnotation.annotationId); }} disabled={!selectedAnnotation} className="p-1.5 bg-white text-red-600 hover:bg-red-50 rounded border border-gray-200 disabled:opacity-50" title="削除"><Trash2 className="w-4 h-4" /></button>
-                                                            </div>
-                                                            
-                                                            <div className="flex gap-1">
-                                                                <button onClick={() => rotateImage(index)} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="回転"><RotateCw className="w-4 h-4" /></button>
-                                                                <button onClick={() => zoomImage(index, 0.1)} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="拡大"><ZoomIn className="w-4 h-4" /></button>
-                                                                <button onClick={() => zoomImage(index, -0.1)} className="p-1.5 bg-white text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded border border-gray-200" title="縮小"><ZoomOut className="w-4 h-4" /></button>
-                                                                <button onClick={() => resetImage(index)} className="p-1.5 bg-white text-gray-600 hover:text-red-500 hover:bg-red-50 rounded border border-gray-200" title="リセット"><RefreshCcw className="w-4 h-4" /></button>
-                                                            </div>
+                                                    {selectionMode && (
+                                                        <div className="absolute -top-3 -left-3 z-40 print-hidden" onClick={(e) => e.stopPropagation()}>
+                                                            <input type="checkbox" checked={selectedSteps.has(index)} onChange={() => toggleStepSelection(index)} className="w-5 h-5 cursor-pointer accent-indigo-600" />
                                                         </div>
-                                                    </div>
-
-                                                    <div className={`bg-indigo-100 hover:bg-indigo-400 transition-colors flex-shrink-0 relative group print-hidden ${isColLayout ? 'h-3 w-full cursor-row-resize' : 'w-1.5 h-auto cursor-col-resize'}`} onMouseDown={(e) => { const container = e.currentTarget.closest('.step-item'); if (container) handleSplitMouseDown(index, e, { current: container }, isColLayout ? 'col' : 'row'); }}>
-                                                        <div className={`absolute bg-gray-400/50 rounded-full ${isColLayout ? 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-1' : 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1 h-8'}`}></div>
-                                                    </div>
-
-                                                    <div className={`flex flex-col gap-2 step-text-container ${isColLayout ? 'w-full' : ''}`} style={!isColLayout ? { width: `${(1 - (step.splitRatio || 0.5)) * 100}%` } : {}}>
-                                                        <textarea value={step.text} onChange={(e) => handleTextChange(index, e.target.value)} className="w-full p-3 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none resize-vertical text-gray-700 leading-relaxed shadow-inner" style={{ minHeight: '120px' }} placeholder="作業の手順やポイントを入力してください..." />
-                                                    </div>
-
+                                                    )}
                                                     <div className="absolute -top-3 -right-3 flex gap-1 print-hidden z-40">
-                                                        <button onClick={() => toggleLayout(index)} className={`bg-white border shadow-sm p-1.5 rounded-md transition-colors mr-2 ${isColLayout ? "text-indigo-600 border-indigo-200 bg-indigo-50" : "text-gray-500 hover:text-indigo-600"}`} title={isColLayout ? "横並びに戻す" : "画像を大きく表示（縦並び）"}>{isColLayout ? <LayoutRow className="w-4 h-4" /> : <LayoutCol className="w-4 h-4" />}</button>
-                                                        <button onClick={() => moveStep(index, -1)} disabled={index === 0} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="上へ移動"><ArrowUp className="w-4 h-4" /></button>
-                                                        <button onClick={() => moveStep(index, 1)} disabled={index === steps.length - 1} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="下へ移動"><ArrowDown className="w-4 h-4" /></button>
-                                                        <button onClick={() => deleteStep(index)} className="bg-white text-gray-400 hover:text-red-500 border shadow-sm p-1.5 rounded-md" title="削除"><Trash2 className="w-4 h-4" /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); moveStep(index, -1); }} disabled={index === 0} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="上へ移動"><ArrowUp className="w-4 h-4" /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); moveStep(index, 1); }} disabled={index === steps.length - 1} className="bg-white text-gray-500 hover:text-indigo-600 border shadow-sm p-1.5 rounded-md disabled:opacity-30" title="下へ移動"><ArrowDown className="w-4 h-4" /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); deleteStep(index); }} className="bg-white text-gray-400 hover:text-red-500 border shadow-sm p-1.5 rounded-md" title="削除"><Trash2 className="w-4 h-4" /></button>
                                                     </div>
                                                 </div>
                                             );
@@ -960,6 +1155,18 @@
                             </div>
                         </div>
                     </div>
+
+                    {deleteConfirm.show && (
+                        <div className="fixed inset-0 flex items-center justify-center z-[9999] bg-black/40 print-hidden" onClick={cancelDelete}>
+                            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-xs w-full mx-4" onClick={(e) => e.stopPropagation()}>
+                                <p className="text-center text-gray-800 font-semibold text-lg mb-6">本当に消しますか？</p>
+                                <div className="flex gap-3 justify-center">
+                                    <button onClick={confirmDelete} className="px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition-colors">はい（削除）</button>
+                                    <button autoFocus onClick={cancelDelete} className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors focus:ring-2 focus:ring-indigo-400 focus:outline-none">いいえ（キャンセル）</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
