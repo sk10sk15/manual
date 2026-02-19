@@ -113,11 +113,16 @@
                 box-sizing: border-box !important;
             }
 
+            /* テキストエディタ外側ラッパーの高さを強制 */
+            .step-text-container > div {
+                height: 100% !important;
+            }
+
             .step-image-mask {
                 overflow: hidden !important;
                 width: 100% !important;
-                height: 100% !important;
-                max-height: none !important;
+                height: auto !important;
+                aspect-ratio: 520 / 255 !important;
             }
 
             .step-image-mask > div {
@@ -146,6 +151,11 @@
             /* h-full等のフルハイト指定を解除 */
             .h-full {
                 height: auto !important;
+            }
+
+            /* 注釈SVGレイヤーは画像コンテナに追従させる */
+            .step-image-mask .h-full {
+                height: 100% !important;
             }
         }
 
@@ -1123,7 +1133,7 @@
                                                                     })}
                                                                 </svg>
                                                             </div>
-                                                            {annotationTool && <div className="absolute inset-0 cursor-crosshair z-20" onClick={(e) => { const containerRef = { current: e.currentTarget.parentElement }; addAnnotation(index, annotationTool, e.clientX, e.clientY, containerRef); }} />}
+                                                            {annotationTool && <div className="absolute inset-0 cursor-crosshair z-20" onClick={(e) => { const containerRef = { current: e.currentTarget.closest('.step-image-mask') }; addAnnotation(index, annotationTool, e.clientX, e.clientY, containerRef); }} />}
                                                         </div>
                                                     </div>
 
